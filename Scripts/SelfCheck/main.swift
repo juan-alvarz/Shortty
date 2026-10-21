@@ -687,6 +687,31 @@ struct SelfCheck {
 
         // MARK: Settings + icon
         check(AppSettings.shared.lazyDelay >= 1 && AppSettings.shared.lazyDelay <= 30, "lazy delay within 1–30")
+
+        // Save folder: Downloads by default; saving into a missing folder creates it (temp folder, never the real Downloads)
+        let settings = AppSettings.shared
+        let originalFolder = settings.saveFolder
+        check(UserDefaults.standard.string(forKey: "saveFolder") != nil || settings.saveFolder == AppSettings.downloadsFolder, "save folder defaults to Downloads")
+        let saveRoot = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-save-\(UUID().uuidString)")
+        let nested = saveRoot.appendingPathComponent("screens/2026", isDirectory: true)
+        settings.saveFolder = nested
+        check(UserDefaults.standard.string(forKey: "saveFolder") == nested.path, "the chosen folder is remembered")
+        let saved = try? ImageExport.save(image, to: settings.saveFolder)
+        check(saved.map { $0.deletingLastPathComponent().standardizedFileURL == nested.standardizedFileURL && CGImage.load(from: $0)?.width == image.width } == true
+              && saved!.lastPathComponent.hasPrefix("shortty-") && saved!.lastPathComponent.hasSuffix("-image.png"),
+              "Save writes shortty-…-image.png into the chosen folder, creating it")
+        try? FileManager.default.removeItem(at: saveRoot)
+        settings.saveFolder = originalFolder
+        if originalFolder == AppSettings.downloadsFolder { UserDefaults.standard.removeObject(forKey: "saveFolder") }
+
+        let general = NSHostingView(rootView: GeneralSettingsView().frame(width: 460))
+        let generalWindow = NSWindow(contentRect: NSRect(origin: .zero, size: general.fittingSize), styleMask: [.titled], backing: .buffered, defer: false)
+        generalWindow.appearance = NSAppearance(named: .darkAqua)
+        generalWindow.contentView = general
+        generalWindow.orderFrontRegardless()
+        spin(0.5)
+        snapshot(general, "settings-general.png")
+        generalWindow.close()
         let iconDir = "\(repo)/Shortty/Resources/Assets.xcassets/AppIcon.appiconset"
         let sizes = [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32), ("icon_32x32@2x", 64), ("icon_128x128", 128),
                      ("icon_128x128@2x", 256), ("icon_256x256", 256), ("icon_256x256@2x", 512), ("icon_512x512", 512), ("icon_512x512@2x", 1024)]

@@ -9,11 +9,11 @@ enum ImageExport {
         pasteboard.writeObjects([NSImage(cgImage: image, size: .zero)])
     }
 
-    /// Writes `~/Downloads/shortty-<yyyyMMdd-HHmmss>-image.png`, returns the URL.
+    /// Writes `<folder>/shortty-<yyyyMMdd-HHmmss>-image.png` (creating the folder if it's gone), returns the URL.
     @discardableResult
-    static func saveToDownloads(_ image: CGImage) throws -> URL {
-        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
-        let url = downloads.appendingPathComponent(fileName())
+    static func save(_ image: CGImage, to folder: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(fileName())
         try writePNG(image, to: url)
         return url
     }

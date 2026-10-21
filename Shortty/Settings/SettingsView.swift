@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 struct SettingsView: View {
@@ -17,10 +18,81 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Toggle("Play sound when capturing", isOn: $settings.captureSound)
+            Section {
+                LaunchAtLoginToggle()
+                Toggle("Play sound when capturing", isOn: $settings.captureSound)
+            }
+            Section("Saving") {
+                SaveFolderRow(folder: $settings.saveFolder)
+            }
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Start at login through macOS login items. The system is the source of truth, so this reads its status
+/// instead of keeping a preference that could drift.
+private struct LaunchAtLoginToggle: View {
+    @State private var status = SMAppService.mainApp.status
+
+    var body: some View {
+        // Closure literal, not `set: setEnabled`: passing the method directly crashes the Swift 6.2 compiler (IRGen thunk).
+        Toggle("Start Shortty at login", isOn: Binding(get: { status == .enabled }, set: { setEnabled($0) }))
+            .onAppear { status = SMAppService.mainApp.status }
+        if status == .requiresApproval {
+            HStack {
+                Text("macOS needs your OK in Login Items.").font(.callout).foregroundStyle(.secondary)
+                Spacer()
+                Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+            }
+        }
+    }
+
+    private func setEnabled(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+        status = SMAppService.mainApp.status
+    }
+}
+
+/// Where Save writes: shows the folder, lets you pick another, or go back to Downloads.
+private struct SaveFolderRow: View {
+    @Binding var folder: URL
+
+    var body: some View {
+        LabeledContent("Save to") {
+            HStack(spacing: 8) {
+                Text((folder.path as NSString).abbreviatingWithTildeInPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .foregroundStyle(.secondary)
+                    .help(folder.path)
+                Button("Choose…") { choose() }
+            }
+        }
+        if folder.standardizedFileURL != AppSettings.downloadsFolder.standardizedFileURL {
+            HStack {
+                Spacer()
+                Button("Use Downloads") { folder = AppSettings.downloadsFolder }
+            }
+        }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = folder
+        panel.prompt = "Use Folder"
+        panel.message = "Where should Shortty save screenshots?"
+        panel.begin { response in
+            if response == .OK, let url = panel.url { folder = url }
+        }
     }
 }
 

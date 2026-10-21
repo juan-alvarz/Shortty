@@ -327,7 +327,7 @@ final class EditorModel {
     func save() {
         endEditing()
         do {
-            try ImageExport.saveToDownloads(rendered)
+            try ImageExport.save(rendered, to: AppSettings.shared.saveFolder)
             onFinish?()
         } catch {
             NSAlert(error: error).runModal()

@@ -14,8 +14,8 @@ Native Swift (SwiftUI + AppKit), lives in the menu bar, no third-party dependenc
 | Reopen Last Capture | none | Brings back the editor with the latest capture and its edits, even after a relaunch. |
 
 All four are in the menu bar too. During a countdown the seconds show next to the menu bar icon, and the menu has
-"Cancel Lazy Shot". Shortcuts and the lazy delay (1–30 s, default 3) are in Settings → Shortcuts. The capture sound
-can be turned off in Settings → General. The latest capture is kept at
+"Cancel Lazy Shot". Shortcuts and the lazy delay (1–30 s, default 3) are in Settings → Shortcuts. Settings → General
+has Start at login, the capture sound, and the folder Save writes to. The latest capture is kept at
 `~/Library/Caches/com.socialgoodsoftware.Shortty/last-capture.png` so it can be reopened; each new capture replaces it.
 
 ## Edit
@@ -31,7 +31,7 @@ Every capture opens in one reused editor window.
 | Arrows / Shift+Arrows | Nudge the selection 1 px / 10 px |
 | `⌫` | Delete the selection |
 | `⌘Z` / `⌘⇧Z` | Undo / redo |
-| `⌘C` / `⌘S` | Copy / save to `~/Downloads/shortty-<timestamp>-image.png` |
+| `⌘C` / `⌘S` | Copy / save as `shortty-<timestamp>-image.png` in your save folder (Downloads unless you pick another) |
 | `⌘V` | Paste a picture from the clipboard into the canvas |
 | `⌘` + scroll, pinch, `⌘+` `⌘-` | Zoom around the pointer · `⌘0` fits |
 | Esc | Back to the Select tool (finishing any typing); on Select, deselect. Never closes the window |

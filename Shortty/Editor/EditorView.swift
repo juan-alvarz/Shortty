@@ -44,7 +44,7 @@ private struct EditorToolbar: View {
 
             divider
             ToolButton(icon: .copy, tooltip: "Copy", shortcut: "⌘C") { model.copy() }
-            ToolButton(icon: .save, tooltip: "Save to Downloads", shortcut: "⌘S") { model.save() }
+            ToolButton(icon: .save, tooltip: "Save to \(AppSettings.shared.saveFolder.lastPathComponent)", shortcut: "⌘S") { model.save() }
             DragHandle(model: model)
             InsertImageButton(model: model)
             divider
