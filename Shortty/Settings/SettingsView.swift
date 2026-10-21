@@ -104,6 +104,7 @@ struct ShortcutsSettingsView: View {
             Section("Capture") {
                 shortcutRow("Region", .region)
                 shortcutRow("Screen", .screen)
+                shortcutRow("Scrolling", .scrolling)
                 shortcutRow("Reopen last capture", .reopen)
             }
             Section {

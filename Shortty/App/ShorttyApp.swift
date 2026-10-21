@@ -34,6 +34,7 @@ private struct CaptureMenu: View {
         }
         item(.region)
         item(.screen)
+        item(.scrolling)
         Divider()
         item(.lazyRegion)
         item(.lazyScreen)

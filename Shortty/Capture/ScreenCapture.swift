@@ -16,6 +16,23 @@ enum ScreenCapture {
         return await capture(["-D", "\(display)"])
     }
 
+    /// One quiet frame of a fixed area for scrolling capture: no sound, not kept as the last capture.
+    /// TIFF because it's the fastest format for `screencapture` to write and us to read (~120 ms a frame).
+    static func frame(of rect: CGRect) async -> CGImage? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-frame-\(UUID().uuidString).tiff")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-x", "-R", rectArgument(rect), "-t", "tiff", url.path]
+        await withCheckedContinuation { continuation in
+            process.terminationHandler = { _ in continuation.resume() }
+            do { try process.run() } catch { continuation.resume() }
+        }
+        return CGImage.load(from: url)
+    }
+
+    static func hasPermission() -> Bool { ensurePermission() }
+
     /// A fixed rectangle in global AppKit coordinates (bottom-left origin).
     static func captureRect(_ rect: CGRect) async -> CGImage? {
         await capture(["-R", rectArgument(rect)])
@@ -98,6 +115,12 @@ enum LastCapture {
 
     static var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
     static func load() -> CGImage? { CGImage.load(from: url) }
+
+    /// Writes a capture that didn't come from a file (scrolling capture).
+    static func store(_ image: CGImage) {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? ImageExport.writePNG(image, to: url)
+    }
 
     /// Moves the fresh capture file into place (no re-encoding).
     static func keep(_ file: URL) {

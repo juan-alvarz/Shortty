@@ -9,6 +9,7 @@ Native Swift (SwiftUI + AppKit), lives in the menu bar, no third-party dependenc
 |---|---|---|
 | Capture Region | `⌘⇧9` | System crosshair. Space switches to window capture, Esc cancels. |
 | Capture Screen | none | The display under the pointer. |
+| Scrolling Capture | none | Drag over an area, then scroll the page: frames are stitched into one tall image (sticky headers/footers kept once). Press Done (Return) or Cancel (Esc) in the small panel. |
 | Lazy Region | `⌘⇧8` | Drag the area first, then a countdown runs and that exact area is captured. |
 | Lazy Screen | none | Countdown, then the display under the pointer. |
 | Reopen Last Capture | none | Brings back the editor with the latest capture and its edits, even after a relaunch. |
@@ -25,7 +26,8 @@ Every capture opens in one reused editor window.
 | Key | Tool / action |
 |---|---|
 | `V` `P` `A` `T` `R` `O` | Select, Pencil, Arrow, Text, Rectangle, Ellipse |
-| `M` `B` `S` `X` | Magnifier, Blur, Spotlight, Recognize Text |
+| `N` `M` `B` `S` `X` `C` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Crop |
+| Return | Apply the crop box |
 | Shift while drawing | Pencil: straight line · Arrow: snaps to 45° · Rectangle/Ellipse: square/circle |
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |
 | Arrows / Shift+Arrows | Nudge the selection 1 px / 10 px |
@@ -60,6 +62,14 @@ layer, and arrows or text drawn on top stay bright.
 
 **Drag and drop**: drag the handle next to Save into any app or a website's upload box. It hands over a temporary
 PNG, so nothing piles up in Downloads.
+
+**Numbered steps**: click to drop 1, 2, 3… badges in the current color; deleting one renumbers the rest. Size slider.
+
+**Crop**: drag a box (handles to adjust, Shift for a square), then Return or the Crop button. Nothing is thrown away:
+Reset in the crop panel, or undo, brings the whole picture back.
+
+**Pin to screen**: the pin button floats the finished picture above every window. Drag to move, scroll or pinch to
+resize, double-click or Esc to close; right-click for Copy, Save, Close.
 
 **Insert pictures**: the picture button pastes from the clipboard, picks files in Finder, or captures a new area
 (the editor steps aside while you select). You can also drop image files from Finder onto the canvas. Inserted

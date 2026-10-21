@@ -34,7 +34,7 @@ enum ImageExport {
         return "shortty-\(formatter.string(from: .now))-image.png"
     }
 
-    private static func writePNG(_ image: CGImage, to url: URL) throws {
+    static func writePNG(_ image: CGImage, to url: URL) throws {
         guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
         else { throw CocoaError(.fileWriteUnknown) }
         CGImageDestinationAddImage(destination, image, nil)

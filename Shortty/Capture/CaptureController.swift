@@ -25,6 +25,10 @@ final class CaptureController {
     func cancel() { task?.cancel() }
 
     private func run(_ action: CaptureAction) async {
+        if action == .scrolling {
+            if let image = await ScrollCapture.run() { EditorWindowController.shared.show(image) }
+            return
+        }
         // Lazy region: pick the area first, then wait, then capture exactly that area.
         var region: CGRect?
         if action == .lazyRegion {

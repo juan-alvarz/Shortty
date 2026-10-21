@@ -77,6 +77,8 @@ final class CanvasScrollView: NSScrollView {
             _ = model.selection
             _ = model.editingID
             _ = model.backdrop
+            _ = model.crop
+            _ = model.cropBox
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.syncFromModel()
@@ -237,7 +239,7 @@ private func grips(for annotation: Annotation) -> [(grip: Grip, point: CGPoint)]
     case .magnifier(let source, let target, _):
         return Handle.corners.map { (.magnifierSource($0), $0.point(in: source.standardized)) }
             + Handle.corners.map { (.magnifierTarget($0), $0.point(in: target.standardized)) }
-    case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image:
+    case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image, .step:
         break
     }
     let box = annotation.bounds
@@ -256,12 +258,16 @@ private final class CanvasView: NSView {
         case movingLens(original: Annotation, target: Bool, start: CGPoint)
         /// Recognize Text: a temporary selection, not an annotation.
         case recognizing(start: CGPoint)
+        /// Crop tool: dragging out, resizing or moving the box (not an annotation either).
+        case cropping(start: CGPoint)
+        case cropResize(box: CGRect, handle: Handle)
+        case cropMove(box: CGRect, start: CGPoint)
 
         var annotationID: Annotation.ID? {
             switch self {
             case .drawing(let id, _): id
             case .moving(let original, _), .resizing(let original, _, _), .reshaping(let original, _), .movingLens(let original, _, _): original.id
-            case .recognizing: nil
+            case .recognizing, .cropping, .cropResize, .cropMove: nil
             }
         }
     }
@@ -295,6 +301,7 @@ private final class CanvasView: NSView {
         overlay = AnnotationLayerView(model: model)
         super.init(frame: .zero)
         wantsLayer = true
+        imageView.clipsToBounds = true // the picture never shows past the canvas (matters once cropped)
         for layer in [imageView, overlay] as [NSView] {
             layer.autoresizingMask = [.width, .height]
             addSubview(layer)
@@ -310,6 +317,8 @@ private final class CanvasView: NSView {
         canvasRect = rect
         self.pixelsPerPoint = pixelsPerPoint
         setFrameSize(NSSize(width: rect.width / pixelsPerPoint, height: rect.height / pixelsPerPoint))
+        // Unclipped so things dragged past the edge stay visible until the canvas grows, except once cropped.
+        overlay.clipsToBounds = model.crop != nil
         for layer in [imageView, overlay] as [CanvasLayer] {
             layer.canvasRect = rect
             layer.pixelsPerPoint = pixelsPerPoint
@@ -420,6 +429,19 @@ private final class CanvasView: NSView {
         } else if model.tool == .recognizeText {
             drag = .recognizing(start: point)
             return
+        } else if model.tool == .crop {
+            drag = cropDrag(at: point)
+            return
+        } else if model.tool == .step {
+            if let hit = annotation(at: point), hit.isStep {
+                model.select(hit.id)
+                drag = .moving(original: hit, start: point)
+            } else {
+                let step = Annotation(shape: .step(center: point), color: model.color, width: model.width(for: .step))
+                model.annotations.append(step)
+                model.selection = step.id
+                drag = .moving(original: step, start: point) // keep the button down to place it precisely
+            }
         } else if let selected = model.selectedAnnotation, [.magnifier, .blur, .spotlight].contains(selected.tool),
                   selected.tool == model.tool, selected.contains(point, tolerance: 4 * pixelsPerScreenPoint) {
             // The effect just drawn stays selected; dragging it moves it instead of drawing another.
@@ -442,7 +464,7 @@ private final class CanvasView: NSView {
             case .blur: .redact(rect: CGRect(origin: point, size: .zero), style: model.redactStyle, textBoxes: [])
             case .spotlight: .spotlight(rect: CGRect(origin: point, size: .zero), shape: model.spotlightShape)
             case .magnifier: .magnifier(source: CGRect(origin: point, size: .zero), target: CGRect(origin: point, size: .zero), shape: model.magnifierShape)
-            case .pencil, .select, .text, .recognizeText: .stroke([point, point]) // 2 points so a click draws a dot
+            case .pencil, .select, .text, .recognizeText, .step, .crop: .stroke([point, point]) // 2 points so a click draws a dot
             }
             let annotation = Annotation(shape: shape, color: model.color, width: model.width(for: model.tool))
             model.annotations.append(annotation)
@@ -476,6 +498,12 @@ private final class CanvasView: NSView {
             cursor(for: imagePoint(event)).set()
         }
         guard let drag else { return }
+        switch drag {
+        case .cropping, .cropResize, .cropMove:
+            if let box = model.cropBox, box.width < 4 || box.height < 4 { model.cropBox = nil }
+            return
+        default: break
+        }
         if case .recognizing = drag {
             if let area = overlay.recognizeArea { model.recognizeText(in: area) }
             overlay.recognizeArea = nil
@@ -489,6 +517,18 @@ private final class CanvasView: NSView {
         model.recordChange(from: annotationsBeforeDrag)
         if let id = drag.annotationID { model.refreshTextBoxes(id) } // Blur/Erase Text: find the text under its new area
         if let id = editOnClick, !moved { model.beginEditing(id) }
+    }
+
+    /// Crop tool: grab a handle of the box, move the box, or drag out a new one.
+    private func cropDrag(at point: CGPoint) -> Drag {
+        if let box = model.cropBox?.standardized {
+            let reach = 7 * pixelsPerScreenPoint
+            if let handle = Handle.allCases.first(where: { hypot($0.point(in: box).x - point.x, $0.point(in: box).y - point.y) <= reach }) {
+                return .cropResize(box: box, handle: handle)
+            }
+            if box.contains(point) { return .cropMove(box: box, start: point) }
+        }
+        return .cropping(start: point)
     }
 
     /// Dragging a magnifier moves the lens under the pointer; anything else moves as a whole.
@@ -537,8 +577,8 @@ private final class CanvasView: NSView {
                 model.annotations[index].shape = .ellipse(Annotation.dragRect(from: start, to: point, square: shift))
             case .arrow(_, _, let bend, let style):
                 model.annotations[index].shape = .arrow(start: start, end: shift ? Self.snapped(from: start, to: point) : point, bend: bend, style: style)
-            case .text, .image:
-                break // text is typed and pictures are inserted, not dragged out
+            case .text, .image, .step:
+                break // text is typed, pictures inserted, steps placed with a click
             case .redact(_, let style, let boxes):
                 model.annotations[index].shape = .redact(rect: Annotation.dragRect(from: start, to: point, square: shift), style: style, textBoxes: boxes)
             case .spotlight(_, let shape):
@@ -584,7 +624,7 @@ private final class CanvasView: NSView {
                 default:
                     return
                 }
-            case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image:
+            case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image, .step:
                 return
             }
             replace(reshaped)
@@ -599,7 +639,24 @@ private final class CanvasView: NSView {
         case .recognizing(let start):
             overlay.recognizeArea = Annotation.dragRect(from: start, to: point, square: false)
             overlay.needsDisplay = true
+        case .cropping(let start):
+            setCropBox(Annotation.dragRect(from: start, to: point, square: shift))
+        case .cropResize(let box, let handle):
+            setCropBox(handle.resize(box, to: point, keepAspect: shift).standardized)
+        case .cropMove(let box, let start):
+            // Slide the box, kept inside the picture.
+            let content = model.contentRect
+            var moved = box.offsetBy(dx: point.x - start.x, dy: point.y - start.y)
+            moved.origin.x = min(max(moved.minX, content.minX), content.maxX - moved.width)
+            moved.origin.y = min(max(moved.minY, content.minY), content.maxY - moved.height)
+            model.cropBox = moved
         }
+    }
+
+    /// The crop box never reaches past the picture.
+    private func setCropBox(_ box: CGRect) {
+        let clipped = box.intersection(model.contentRect)
+        model.cropBox = clipped.isNull ? nil : clipped
     }
 
     /// Shift for arrows: point the line at the nearest 45°, keeping its length along that direction.
@@ -772,12 +829,16 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
             outline.stroke()
         }
 
+        if model.tool == .crop, let crop = model.cropBox {
+            drawCropBox(crop, screenPoint: screenPoint)
+        }
+
         guard let selected = model.selectedAnnotation else { return }
         let pixels = selected.textBox?.box.insetBy(dx: -3, dy: -3) ?? selected.bounds
         let box = CGRect(x: pixels.minX / pixelsPerPoint, y: pixels.minY / pixelsPerPoint,
                          width: pixels.width / pixelsPerPoint, height: pixels.height / pixelsPerPoint)
 
-        if selected.usesBoxHandles || selected.isText {
+        if selected.usesBoxHandles || selected.isText || selected.isStep {
             let outline = NSBezierPath(rect: box)
             outline.lineWidth = screenPoint
             outline.setLineDash([4 * screenPoint, 3 * screenPoint], count: 2, phase: 0)
@@ -806,5 +867,42 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
             }
             context.restoreGState()
         }
+    }
+
+    /// Crop tool: everything outside the box dimmed, a dashed outline, handles and the resulting size.
+    private func drawCropBox(_ crop: CGRect, screenPoint: CGFloat) {
+        func view(_ rect: CGRect) -> CGRect {
+            CGRect(x: rect.minX / pixelsPerPoint, y: rect.minY / pixelsPerPoint, width: rect.width / pixelsPerPoint, height: rect.height / pixelsPerPoint)
+        }
+        let box = view(crop)
+        let dim = NSBezierPath(rect: view(model.contentRect))
+        dim.append(NSBezierPath(rect: box))
+        dim.windingRule = .evenOdd
+        NSColor.black.withAlphaComponent(0.55).setFill()
+        dim.fill()
+
+        let outline = NSBezierPath(rect: box)
+        outline.lineWidth = 1.5 * screenPoint
+        outline.setLineDash([6 * screenPoint, 4 * screenPoint], count: 2, phase: 0)
+        NSColor.white.setStroke()
+        outline.stroke()
+
+        let size = 9 * screenPoint
+        for handle in Handle.allCases {
+            let center = handle.point(in: box)
+            let square = NSBezierPath(roundedRect: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size),
+                                      xRadius: 2 * screenPoint, yRadius: 2 * screenPoint)
+            NSColor.white.setFill()
+            square.fill()
+        }
+
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        context.saveGState()
+        context.translateBy(x: box.maxX, y: box.maxY + 10 * screenPoint)
+        context.scaleBy(x: screenPoint, y: screenPoint)
+        drawPill("\(Int(crop.width)) × \(Int(crop.height))", font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium)) { size in
+            CGPoint(x: -size.width, y: 0)
+        }
+        context.restoreGState()
     }
 }

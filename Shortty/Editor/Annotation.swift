@@ -19,6 +19,9 @@ struct Annotation: Identifiable, Equatable {
         case magnifier(source: CGRect, target: CGRect, shape: AreaShape)
         /// A pasted, dropped or newly captured picture, drawn into `rect`.
         case image(rect: CGRect, image: CGImage)
+        /// A numbered badge. Its number is its position among the steps (so deleting one renumbers the rest);
+        /// the diameter is `width`.
+        case step(center: CGPoint)
     }
 
     let id = UUID()
@@ -46,6 +49,17 @@ struct Annotation: Identifiable, Equatable {
         if case .image = shape { true } else { false }
     }
 
+    var isStep: Bool {
+        if case .step = shape { true } else { false }
+    }
+
+    /// 1, 2, 3… for the steps in `annotations`, in the order they were added.
+    static func stepNumbers(in annotations: [Annotation]) -> [Annotation.ID: Int] {
+        var numbers: [Annotation.ID: Int] = [:]
+        for annotation in annotations where annotation.isStep { numbers[annotation.id] = numbers.count + 1 }
+        return numbers
+    }
+
     /// Effects drawn below everything else (hiding and the spotlight dim), rather than in list order.
     var isBackdropEffect: Bool {
         switch shape {
@@ -71,11 +85,12 @@ struct Annotation: Identifiable, Equatable {
         case .spotlight: .spotlight
         case .magnifier: .magnifier
         case .image: .select // no tool draws it; it's inserted
+        case .step: .step
         }
     }
 
     /// Arrows are edited by their points, text by its pointer, the magnifier by its two lenses; everything else by a box with 8 handles.
-    var usesBoxHandles: Bool { !isArrow && !isText && !isMagnifier }
+    var usesBoxHandles: Bool { !isArrow && !isText && !isMagnifier && !isStep }
 
     /// The box that selection handles sit on.
     var bounds: CGRect {
@@ -99,13 +114,15 @@ struct Annotation: Identifiable, Equatable {
             return source.standardized.union(target.standardized)
         case .image(let rect, _):
             return rect.standardized
+        case .step(let center):
+            return CGRect(x: center.x - width / 2, y: center.y - width / 2, width: width, height: width)
         }
     }
 
     /// A shape too small to see (a click without a drag), or text with nothing typed.
     var isDegenerate: Bool {
         switch shape {
-        case .stroke: false
+        case .stroke, .step: false
         case .arrow(let start, let end, _, _): hypot(end.x - start.x, end.y - start.y) < 4
         case .rectangle, .ellipse: bounds.width < 3 || bounds.height < 3
         case .text(_, let string, _, _): string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -143,6 +160,8 @@ struct Annotation: Identifiable, Equatable {
             return [source, target].contains { $0.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) }
         case .image(let rect, _):
             return rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
+        case .step(let center):
+            return hypot(point.x - center.x, point.y - center.y) <= width / 2 + tolerance
         }
     }
 
@@ -192,6 +211,8 @@ struct Annotation: Identifiable, Equatable {
             copy.shape = .magnifier(source: box(source), target: box(target), shape: shape)
         case .image(let rect, let image):
             copy.shape = .image(rect: box(rect), image: image)
+        case .step(let center):
+            copy.shape = .step(center: transform(center))
         }
         return copy
     }
@@ -223,6 +244,7 @@ extension CGContext {
 
         setLineCap(.round)
         setLineJoin(.round)
+        let stepNumbers = Annotation.stepNumbers(in: annotations)
         for annotation in annotations where !annotation.isBackdropEffect {
             let color = NSColor(annotation.color).cgColor
             setStrokeColor(color)
@@ -268,10 +290,29 @@ extension CGContext {
                 interpolationQuality = .high
                 drawUpright(picture, in: rect.standardized)
                 restoreGState()
+            case .step(let center):
+                drawStep(stepNumbers[annotation.id] ?? 0, at: center, diameter: annotation.width, color: annotation.color)
             case .redact, .spotlight:
                 break // drawn above, before everything else
             }
         }
+    }
+}
+
+extension CGContext {
+    /// A filled circle with its number centered in black or white, whichever reads better on the color.
+    func drawStep(_ number: Int, at center: CGPoint, diameter: CGFloat, color: Color) {
+        fillEllipse(in: CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: diameter * (number > 9 ? 0.46 : 0.56), weight: .bold),
+            .foregroundColor: TextBox.textColor(style: .label, color: color),
+        ]
+        let label = NSAttributedString(string: "\(number)", attributes: attributes)
+        let size = label.size()
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: self, flipped: true)
+        label.draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
+        NSGraphicsContext.restoreGraphicsState()
     }
 }
 
@@ -284,6 +325,7 @@ extension Annotation {
         case .arrow: bounds.insetBy(dx: -(max(width * 1.8, 8) + 2), dy: -(max(width * 1.8, 8) + 2))
         case .text: bounds.insetBy(dx: -3, dy: -3)
         case .image: bounds
+        case .step: bounds.insetBy(dx: -2, dy: -2)
         case .stroke, .rectangle, .ellipse, .magnifier: bounds.insetBy(dx: -(width / 2 + 2), dy: -(width / 2 + 2))
         }
     }
@@ -297,9 +339,10 @@ extension CGImage {
 
     /// Flattens annotations onto a copy of the image. Anything drawn past the edges grows the result,
     /// and the new area is filled with the image's edge color.
-    func rendering(_ annotations: [Annotation]) -> CGImage {
-        guard !annotations.isEmpty else { return self }
-        let canvas = canvasRect(for: annotations)
+    /// `crop`: export only that area (image px) instead.
+    func rendering(_ annotations: [Annotation], crop: CGRect? = nil) -> CGImage {
+        guard !annotations.isEmpty || crop != nil else { return self }
+        let canvas = crop?.integral ?? canvasRect(for: annotations)
         guard let context = CGContext(
             data: nil, width: Int(canvas.width), height: Int(canvas.height), bitsPerComponent: 8, bytesPerRow: 0,
             space: colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,

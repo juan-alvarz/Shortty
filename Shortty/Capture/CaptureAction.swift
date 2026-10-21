@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 
 /// Everything the user can trigger from the menu bar or a global shortcut.
 enum CaptureAction: String, CaseIterable, Identifiable {
-    case region, screen, lazyRegion, lazyScreen, reopen // new cases go last: hotkey ids follow this order
+    case region, screen, lazyRegion, lazyScreen, reopen, scrolling // new cases go last: hotkey ids follow this order
 
     var id: String { rawValue }
     var isLazy: Bool { self == .lazyRegion || self == .lazyScreen }
@@ -16,6 +16,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         case .lazyRegion: "Lazy Region"
         case .lazyScreen: "Lazy Screen"
         case .reopen: "Reopen Last Capture"
+        case .scrolling: "Scrolling Capture"
         }
     }
 
@@ -26,7 +27,7 @@ enum CaptureAction: String, CaseIterable, Identifiable {
         switch self {
         case .region: .defaultRegion
         case .lazyRegion: Hotkey(keyCode: UInt32(kVK_ANSI_8), modifiers: NSEvent.ModifierFlags([.command, .shift]).rawValue, keyLabel: "8")
-        case .screen, .lazyScreen, .reopen: .none
+        case .screen, .lazyScreen, .reopen, .scrolling: .none
         }
     }
 }

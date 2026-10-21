@@ -24,9 +24,12 @@
 		95DEBD9D9F4F582AE373458A /* ShorttyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3632463970E16D02813D2971 /* ShorttyApp.swift */; };
 		A618E16E1595401D4DA4720B /* Hotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B218E7F14EE9A0B97CFCF3 /* Hotkey.swift */; };
 		A7578B5143A7D97920A2C82B /* Backdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF34C2420A3B04D4FCD23C62 /* Backdrop.swift */; };
+		AA7F826391DDAB660C5FD82A /* ScrollCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 341C04DB5D26889F57FCDE62 /* ScrollCapture.swift */; };
 		AA839FBEEF78927FFB7C7440 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72872894B067891FDAB6D5D /* EditorView.swift */; };
 		AAEC589ABEC78FEB05B2409A /* Icons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD3D747FF5AB32C294F7946 /* Icons.swift */; };
 		B613E27C51B5A41213982071 /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D3C4069CF2E06B7281757E /* TextRecognition.swift */; };
+		D1CE10DCD7E2918BD9D1ACDB /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */; };
+		D5CA6C1A0168C7E19F2B23F6 /* ScrollStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */; };
 		E0355470B16B0B1C0E6F43D1 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E67EC2996327FAED2B61B3 /* CaptureController.swift */; };
 		F413862C56384AA023112EFA /* Annotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128FF1746F700DEAC29D7FB8 /* Annotation.swift */; };
 		F50D42C81F81BCC00FDAD3F1 /* EditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52F10276AE6A02A26B9A976A /* EditorModel.swift */; };
@@ -41,10 +44,12 @@
 		2DA16053C98819512A9FC897 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		30B218E7F14EE9A0B97CFCF3 /* Hotkey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hotkey.swift; sourceTree = "<group>"; };
 		30FFC51D368719B1E9FF0AFD /* HotkeyRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyRecorder.swift; sourceTree = "<group>"; };
+		341C04DB5D26889F57FCDE62 /* ScrollCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollCapture.swift; sourceTree = "<group>"; };
 		3632463970E16D02813D2971 /* ShorttyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShorttyApp.swift; sourceTree = "<group>"; };
 		41AA6B596EB6CC161428EBC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		46A0D1DF7ABD400F75CEE78B /* DragHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandle.swift; sourceTree = "<group>"; };
 		52F10276AE6A02A26B9A976A /* EditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorModel.swift; sourceTree = "<group>"; };
+		5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollStitcher.swift; sourceTree = "<group>"; };
 		5D9FE5C68B274F0B8385EE5D /* Effects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effects.swift; sourceTree = "<group>"; };
 		796DCAD3F4B813967C121324 /* Arrow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Arrow.swift; sourceTree = "<group>"; };
 		7BC4816D2FA9B0822F685E95 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -57,6 +62,7 @@
 		BFD61CEC1E72DFD904C3D8C6 /* AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSettings.swift; sourceTree = "<group>"; };
 		C6039F8B54C435C010C29128 /* Shortty.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shortty.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C72872894B067891FDAB6D5D /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinWindow.swift; sourceTree = "<group>"; };
 		CEDFB80BEE0944A20848BCBD /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		CF34C2420A3B04D4FCD23C62 /* Backdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Backdrop.swift; sourceTree = "<group>"; };
 		D92EE158689CD51AD95D04ED /* ImageExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageExport.swift; sourceTree = "<group>"; };
@@ -119,6 +125,8 @@
 				A6E67EC2996327FAED2B61B3 /* CaptureController.swift */,
 				8E8827E5E5785422431746A3 /* RegionSelector.swift */,
 				8899207AD6EFBA9DEED53F0D /* ScreenCapture.swift */,
+				341C04DB5D26889F57FCDE62 /* ScrollCapture.swift */,
+				5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */,
 			);
 			path = Capture;
 			sourceTree = "<group>";
@@ -158,6 +166,7 @@
 				5D9FE5C68B274F0B8385EE5D /* Effects.swift */,
 				9DD3D747FF5AB32C294F7946 /* Icons.swift */,
 				D92EE158689CD51AD95D04ED /* ImageExport.swift */,
+				CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */,
 				FA9AB0C8710FF1D865A89E32 /* Text.swift */,
 				87D3C4069CF2E06B7281757E /* TextRecognition.swift */,
 				CEDFB80BEE0944A20848BCBD /* Theme.swift */,
@@ -253,8 +262,11 @@
 				802230C49DCD4B367043D00E /* HotkeyRecorder.swift in Sources */,
 				AAEC589ABEC78FEB05B2409A /* Icons.swift in Sources */,
 				78ED274A3E97373E29D4FF8D /* ImageExport.swift in Sources */,
+				D1CE10DCD7E2918BD9D1ACDB /* PinWindow.swift in Sources */,
 				FA6A37BEFF6078B665D1D9C1 /* RegionSelector.swift in Sources */,
 				2D513F71A27483AA5C895727 /* ScreenCapture.swift in Sources */,
+				AA7F826391DDAB660C5FD82A /* ScrollCapture.swift in Sources */,
+				D5CA6C1A0168C7E19F2B23F6 /* ScrollStitcher.swift in Sources */,
 				3569C6FBCBB830D384A97272 /* SettingsView.swift in Sources */,
 				95DEBD9D9F4F582AE373458A /* ShorttyApp.swift in Sources */,
 				0B00E38B0750E79B6EEBAD5D /* Text.swift in Sources */,

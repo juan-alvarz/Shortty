@@ -4,9 +4,9 @@ import Carbon.HIToolbox
 /// Full-screen crosshair overlay to drag out a rectangle, without stealing focus from the frontmost app.
 /// Returns the rectangle in global AppKit coordinates (bottom-left origin), or nil on Esc / right-click.
 enum RegionSelector {
-    static func select() async -> CGRect? {
+    static func select(hint: String = "Drag to select the lazy shot area   ·   Esc to cancel") async -> CGRect? {
         await withCheckedContinuation { continuation in
-            SelectionSession { continuation.resume(returning: $0) }.begin()
+            SelectionSession(hint: hint) { continuation.resume(returning: $0) }.begin()
         }
     }
 }
@@ -32,8 +32,12 @@ private final class SelectionSession {
     private static var active: SelectionSession? // keeps the session alive while on screen
     private var panels: [OverlayPanel] = []
     private var finish: ((CGRect?) -> Void)?
+    private let hint: String
 
-    init(finish: @escaping (CGRect?) -> Void) { self.finish = finish }
+    init(hint: String, finish: @escaping (CGRect?) -> Void) {
+        self.hint = hint
+        self.finish = finish
+    }
 
     func begin() {
         Self.active = self
@@ -41,6 +45,7 @@ private final class SelectionSession {
         for screen in NSScreen.screens {
             let panel = OverlayPanel(screen: screen)
             let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
+            view.hint = hint
             view.onFinish = { [weak self, weak panel] rect in
                 self?.end(rect.flatMap { panel?.convertToScreen($0) })
             }
@@ -69,6 +74,7 @@ private final class SelectionSession {
 
 private final class SelectionView: NSView {
     var onFinish: ((CGRect?) -> Void)?
+    var hint = ""
     private var anchor: CGPoint?
     private var selection: CGRect?
 
@@ -132,7 +138,7 @@ private final class SelectionView: NSView {
         dim.fill()
 
         guard let selection else {
-            drawPill("Drag to select the lazy shot area   ·   Esc to cancel") { size in
+            drawPill(hint) { size in
                 CGPoint(x: (self.bounds.width - size.width) / 2, y: (self.bounds.height - size.height) / 2)
             }
             return
@@ -187,6 +193,7 @@ private final class CountdownView: NSView {
         NSColor(Theme.accent).setStroke()
         outline.stroke()
 
+        guard seconds > 0 else { return } // no badge: plain outline (scrolling capture)
         drawPill("\(seconds)", font: .monospacedDigitSystemFont(ofSize: 15, weight: .bold), fill: NSColor(Theme.accent)) { size in
             // Above the top-left corner, else below the region, else inside it.
             let above = self.region.maxY + 8

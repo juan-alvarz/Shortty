@@ -4,7 +4,7 @@ import SwiftUI
 
 @Observable
 final class EditorModel {
-    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight, recognizeText }
+    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, step, magnifier, blur, spotlight, recognizeText, crop }
 
     private(set) var image: CGImage
     /// False until the first capture/image is loaded (the window starts with a 1px placeholder).
@@ -16,8 +16,13 @@ final class EditorModel {
         didSet {
             endEditing()
             if tool != .select { selection = nil }
+            if tool != .crop { cropBox = nil }
         }
     }
+    /// Crop tool: the box being adjusted, not applied yet (image px).
+    var cropBox: CGRect?
+    /// The applied crop (image px): the output is just this area. Non-destructive: Reset or undo brings the rest back.
+    private(set) var crop: CGRect?
     /// Color for new annotations; picking one also recolors the selection.
     private(set) var color = Theme.accent
     /// Style for new arrows; changing it also updates a selected arrow.
@@ -39,15 +44,23 @@ final class EditorModel {
     var backdrop: Backdrop?
     /// "Capture new area" in the insert menu; the window controller hides the editor, captures, and inserts.
     @ObservationIgnored var onInsertCapture: (() -> Void)?
+    /// Pin to screen: the window controller floats the finished picture and closes the editor.
+    @ObservationIgnored var onPin: ((CGImage) -> Void)?
+
+    func pin() {
+        endEditing()
+        onPin?(rendered)
+    }
     /// The slider value per tool: thickness in image px; font size for text; block size for blur; dim % for spotlight.
     private(set) var toolWidths: [Tool: CGFloat] = [.pencil: 4, .arrow: 6, .text: 28, .rectangle: 4, .ellipse: 4,
-                                                    .magnifier: 4, .blur: 12, .spotlight: 60]
+                                                    .magnifier: 4, .blur: 12, .spotlight: 60, .step: 36]
 
     static func widthRange(for tool: Tool) -> ClosedRange<CGFloat> {
         switch tool {
         case .text: 12...120
         case .blur: 4...40
         case .spotlight: 20...90
+        case .step: 16...96
         default: 2...24
         }
     }
@@ -58,8 +71,13 @@ final class EditorModel {
     /// Called after copy/save so the window can close.
     var onFinish: (() -> Void)?
 
-    @ObservationIgnored private var undoStack: [[Annotation]] = []
-    @ObservationIgnored private var redoStack: [[Annotation]] = []
+    /// What undo restores: the annotations and the crop.
+    private struct Snapshot {
+        var annotations: [Annotation]
+        var crop: CGRect?
+    }
+    @ObservationIgnored private var undoStack: [Snapshot] = []
+    @ObservationIgnored private var redoStack: [Snapshot] = []
 
     init(image: CGImage) { self.image = image }
 
@@ -69,13 +87,16 @@ final class EditorModel {
         hasImage = true
         annotations = []
         selection = nil
+        crop = nil
+        cropBox = nil
         undoStack = []
         redoStack = []
         zoom = nil
     }
 
     /// The image plus anything drawn past its edges, in image pixels.
-    var contentRect: CGRect { image.canvasRect(for: annotations) }
+    /// The crop when there is one, else the image plus anything drawn past its edges.
+    var contentRect: CGRect { crop ?? image.canvasRect(for: annotations) }
     /// Everything shown and exported: the content, plus the backdrop's padding when it's on.
     var canvasRect: CGRect {
         guard let backdrop else { return contentRect }
@@ -98,7 +119,7 @@ final class EditorModel {
     var showsArrowStyles: Bool { optionsTool == .arrow }
     var showsTextStyles: Bool { optionsTool == .text }
     /// Erase has nothing to adjust.
-    var showsWidthSlider: Bool { optionsTool != .blur || redactStyle.usesStrength }
+    var showsWidthSlider: Bool { optionsTool != .crop && (optionsTool != .blur || redactStyle.usesStrength) } // crop has buttons instead
     var currentWidthRange: ClosedRange<CGFloat> { Self.widthRange(for: optionsTool) }
 
     /// What the thickness slider shows: the selection's width, else the current tool's.
@@ -245,22 +266,45 @@ final class EditorModel {
     /// Makes the change from `before` to the current annotations undoable (no-op if nothing changed).
     func recordChange(from before: [Annotation]) {
         guard before != annotations else { return }
-        undoStack.append(before)
+        undoStack.append(Snapshot(annotations: before, crop: crop))
         redoStack.removeAll()
     }
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append(annotations)
-        annotations = previous
-        if selectedIndex == nil { selection = nil }
+        redoStack.append(Snapshot(annotations: annotations, crop: crop))
+        restore(previous)
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(annotations)
-        annotations = next
+        undoStack.append(Snapshot(annotations: annotations, crop: crop))
+        restore(next)
+    }
+
+    private func restore(_ snapshot: Snapshot) {
+        annotations = snapshot.annotations
+        crop = snapshot.crop
         if selectedIndex == nil { selection = nil }
+    }
+
+    // MARK: Crop
+
+    /// Crops to the box being adjusted (Return or the Crop button), then goes back to Select.
+    func applyCrop() {
+        guard let box = cropBox?.standardized.integral, box.width >= 4, box.height >= 4 else { return }
+        undoStack.append(Snapshot(annotations: annotations, crop: crop))
+        redoStack.removeAll()
+        crop = box
+        tool = .select
+    }
+
+    /// Back to the whole picture (undoable).
+    func resetCrop() {
+        guard crop != nil else { return }
+        undoStack.append(Snapshot(annotations: annotations, crop: crop))
+        redoStack.removeAll()
+        crop = nil
     }
 
     private func edit(_ change: (inout [Annotation]) -> Void) {
@@ -280,7 +324,7 @@ final class EditorModel {
     // MARK: Output
 
     var rendered: CGImage {
-        let content = image.rendering(annotations)
+        let content = image.rendering(annotations, crop: crop)
         return backdrop.map(content.addingBackdrop) ?? content
     }
 

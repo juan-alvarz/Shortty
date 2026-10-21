@@ -28,9 +28,9 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | Path | What lives there |
 |---|---|
 | `Shortty/App` | Entry point and menu bar menu, `AppDelegate`, `AppSettings` (UserDefaults-backed, `@Observable`) |
-| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`, `LastCapture` file for reopen), `RegionSelector` (lazy-region overlay + countdown outline) |
+| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`, `LastCapture` file for reopen), `RegionSelector` (area-picking overlay + countdown outline), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
-| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision), `DragHandle`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor), `EditorView` (toolbar, color popover, floating tool options panel), `Icons`, `Theme` |
+| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor), `EditorView` (toolbar, color popover, floating tool options panel), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
 | `Scripts` | install, signing cert, icon renderer, self-check |
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
@@ -56,12 +56,12 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
   edges. The canvas covers `EditorModel.canvasRect` (image ∪ each annotation's `drawnBounds`): view point → image px is
   `canvasRect.origin + point × pixelsPerPoint`. `NSScrollView.magnification` is the zoom. The canvas only resizes when
   no drag or typing is in progress (`CanvasView.isBusy`), so nothing jumps under the pointer.
-- **Undo.** Change `annotations` through `EditorModel` methods, or call `recordChange(from:)` after a change. Live
+- **Undo.** Snapshots hold the annotations and the crop. Change `annotations` through `EditorModel` methods, or call `recordChange(from:)` after a change. Live
   drags (sliders, mouse) apply with `undoable: false`, then record one step at the end.
 - **Text editing.** `EditorModel.editingID` drives it: `beginEditing` / `setText` / `endEditing` (removes empty text,
   records one undo step). The canvas shows a TextKit 1 `NSTextView` while it's set and hides those glyphs from the
   overlay. Key shortcuts must pass through while typing (`EditorWindowController.handle`).
-- **Content vs canvas.** `contentRect` = image ∪ annotations (what effects like the spotlight cover); `canvasRect` adds
+- **Content vs canvas.** `contentRect` = the crop if any, else image ∪ annotations (what effects like the spotlight cover); `canvasRect` adds
   the backdrop padding (what's shown and exported). `rendered` flattens the content, then adds the backdrop.
 - **Draw order.** `drawAnnotations(_:on:)` paints blur/erase first, then one shared spotlight dim, then everything
   else in list order. Effects read pixels from the base image passed in, never from other annotations.

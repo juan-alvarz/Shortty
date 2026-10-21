@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Hand-drawn line icons (20×20 design grid, 1.5pt stroke) so the editor doesn't depend on SF Symbols.
-enum IconKind { case copy, save, drag, insertImage, backdrop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight, recognizeText, eyedropper }
+enum IconKind { case copy, save, drag, pin, insertImage, backdrop, step, crop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight, recognizeText, eyedropper }
 
 struct Icon: View {
     let kind: IconKind
@@ -71,6 +71,36 @@ struct Icon: View {
                         context.fill(Path(ellipseIn: CGRect(x: x - 0.9, y: y - 0.9, width: 1.8, height: 1.8)), with: .foreground)
                     }
                 }
+            case .pin:
+                // A pushpin.
+                var path = Path()
+                path.addRoundedRect(in: CGRect(x: 6.5, y: 2.5, width: 7, height: 3), cornerSize: CGSize(width: 1, height: 1))
+                path.move(to: CGPoint(x: 7.5, y: 5.5))
+                path.addLine(to: CGPoint(x: 6.5, y: 11))
+                path.addLine(to: CGPoint(x: 13.5, y: 11))
+                path.addLine(to: CGPoint(x: 12.5, y: 5.5))
+                path.move(to: CGPoint(x: 4.5, y: 11))
+                path.addLine(to: CGPoint(x: 15.5, y: 11))
+                path.move(to: CGPoint(x: 10, y: 11))
+                path.addLine(to: CGPoint(x: 10, y: 17.5))
+                context.stroke(path, with: .foreground, style: style)
+            case .step:
+                // A badge with a 1.
+                context.stroke(Path(ellipseIn: CGRect(x: 2.75, y: 2.75, width: 14.5, height: 14.5)), with: .foreground, style: style)
+                var one = Path()
+                one.move(to: CGPoint(x: 8.25, y: 7.5))
+                one.addLine(to: CGPoint(x: 10.25, y: 6))
+                one.addLine(to: CGPoint(x: 10.25, y: 14))
+                context.stroke(one, with: .foreground, style: style)
+            case .crop:
+                var path = Path()
+                path.move(to: CGPoint(x: 6, y: 2.5))
+                path.addLine(to: CGPoint(x: 6, y: 14))
+                path.addLine(to: CGPoint(x: 17.5, y: 14))
+                path.move(to: CGPoint(x: 2.5, y: 6))
+                path.addLine(to: CGPoint(x: 14, y: 6))
+                path.addLine(to: CGPoint(x: 14, y: 17.5))
+                context.stroke(path, with: .foreground, style: style)
             case .insertImage:
                 // A picture with a plus.
                 context.stroke(Path(roundedRect: CGRect(x: 2.5, y: 5, width: 12.5, height: 11), cornerRadius: 2), with: .foreground, style: style)

@@ -25,7 +25,7 @@ struct EditorView: View {
                     if model.toast == shown { model.toast = nil }
                 }
         }
-        .frame(minWidth: 780, minHeight: 320)
+        .frame(minWidth: 880, minHeight: 320)
     }
 }
 
@@ -46,6 +46,7 @@ private struct EditorToolbar: View {
             ToolButton(icon: .copy, tooltip: "Copy", shortcut: "⌘C") { model.copy() }
             ToolButton(icon: .save, tooltip: "Save to \(AppSettings.shared.saveFolder.lastPathComponent)", shortcut: "⌘S") { model.save() }
             DragHandle(model: model)
+            ToolButton(icon: .pin, tooltip: "Pin to screen", shortcut: nil) { model.pin() }
             InsertImageButton(model: model)
             divider
             tool(.select, icon: .cursor, "Select", key: "V")
@@ -54,11 +55,13 @@ private struct EditorToolbar: View {
             tool(.text, icon: .text, "Text", key: "T")
             tool(.rectangle, icon: .rectangle, "Rectangle", key: "R")
             tool(.ellipse, icon: .ellipse, "Ellipse", key: "O")
+            tool(.step, icon: .step, "Numbered steps", key: "N")
             divider
             tool(.magnifier, icon: .magnifier, "Magnifier", key: "M")
             tool(.blur, icon: .blur, "Blur", key: "B")
             tool(.spotlight, icon: .spotlight, "Spotlight", key: "S")
             tool(.recognizeText, icon: .recognizeText, "Recognize Text", key: "X")
+            tool(.crop, icon: .crop, "Crop", key: "C")
             divider
             ColorButton(model: model)
             BackdropButton(model: model)
@@ -316,6 +319,10 @@ private struct ToolOptionsBar: View {
                 } action: { model.setRedactStyle($0) }
             }
 
+            if model.optionsTool == .crop {
+                CropOptions(model: model)
+            }
+
             if model.optionsTool == .spotlight || model.optionsTool == .magnifier {
                 Segments(items: AreaShape.allCases, selected: model.optionsTool == .spotlight ? model.spotlightShape : model.magnifierShape) { shape in
                     Icon(kind: shape.icon, size: 16).frame(width: 26)
@@ -354,8 +361,51 @@ private struct ToolOptionsBar: View {
         case .text: "Text size"
         case .blur: "Blur strength"
         case .spotlight: "Dim"
+        case .step: "Size"
         default: "Thickness"
         }
+    }
+}
+
+/// Crop: a hint until there's a box, then Crop (or Return); Reset once a crop is applied.
+private struct CropOptions: View {
+    @Bindable var model: EditorModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if model.cropBox == nil {
+                Text(model.crop == nil ? "Drag to choose the area" : "Drag a new area, or reset")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.chromeText)
+            }
+            if model.crop != nil {
+                PanelButton(title: "Reset") { model.resetCrop() }
+            }
+            if model.cropBox != nil {
+                PanelButton(title: "Crop", prominent: true) { model.applyCrop() }
+            }
+        }
+    }
+}
+
+private struct PanelButton: View {
+    let title: String
+    var prominent = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .frame(height: 24)
+                .background(RoundedRectangle(cornerRadius: 6).fill(prominent ? Theme.accent.opacity(hovering ? 0.85 : 1) : .white.opacity(hovering ? 0.16 : 0.1)))
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .onHover { hovering = $0 }
     }
 }
 

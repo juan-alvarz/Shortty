@@ -619,6 +619,123 @@ struct SelfCheck {
         model.undo(); model.undo(); model.undo(); model.undo(); model.undo(); model.undo()
         check(model.annotations.count == countBeforeInsert, "undo takes the pictures back out")
 
+        // MARK: Numbered steps
+        model.select(nil)
+        model.tool = .step
+        check(model.showsOptions && model.currentWidth == 36 && model.currentWidthRange == 16...96, "steps: size 36 (16–96)")
+        let stepsBefore = model.annotations.count
+        for point in [CGPoint(x: 150, y: 620), CGPoint(x: 250, y: 620), CGPoint(x: 350, y: 620)] { click(point) }
+        let steps = model.annotations.suffix(3)
+        var numbers = Annotation.stepNumbers(in: model.annotations)
+        check(model.annotations.count == stepsBefore + 3 && steps.map { numbers[$0.id] } == [1, 2, 3] && model.selection == steps.last?.id,
+              "three clicks place steps 1, 2, 3")
+        let firstStep = steps.first!
+        check(same(pixel(image.rendering([firstStep]), 150 + 12, 620), firstStep.color.rgb.map { UInt8($0) }, 10), "a step is a filled badge in its color")
+        model.select(steps[steps.startIndex + 1].id)
+        model.deleteSelection()
+        numbers = Annotation.stepNumbers(in: model.annotations)
+        check(numbers[steps.first!.id] == 1 && numbers[steps.last!.id] == 2, "deleting step 2 renumbers the rest")
+        model.undo()
+        check(Annotation.stepNumbers(in: model.annotations)[steps.last!.id] == 3, "undo brings it back as 2, the last is 3 again")
+        model.select(steps.last!.id)
+        model.setWidth(60)
+        check(near(model.annotations.last!.bounds.width, 60), "the size slider resizes the selected step")
+        click(CGPoint(x: 350, y: 620))
+        check(model.annotations.count == stepsBefore + 3, "clicking an existing step selects it instead of adding one")
+        spin(0.3)
+        snapshot(window.contentView!, "editor-steps.png")
+
+        // MARK: Crop
+        model.select(nil)
+        model.tool = .crop
+        check(model.showsOptions && !model.showsWidthSlider, "crop: panel with buttons, no slider")
+        drag(CGPoint(x: 200, y: 150), CGPoint(x: 600, y: 400))
+        check(model.cropBox.map { near($0.minX, 200) && near($0.minY, 150) && near($0.width, 400) && near($0.height, 250) } == true, "dragging sets the crop box")
+        spin(0.3)
+        snapshot(window.contentView!, "editor-crop.png")
+        drag(CGPoint(x: 600, y: 400), CGPoint(x: 1400, y: 900)) // bottom-right handle, far past the picture
+        check(model.cropBox.map { $0.maxX <= model.contentRect.maxX + 0.5 && $0.maxY <= model.contentRect.maxY + 0.5 } == true, "the box stays inside the picture")
+        drag(CGPoint(x: 600, y: 400), CGPoint(x: 600, y: 400)) // no-op click inside keeps the box
+        model.cropBox = CGRect(x: 200, y: 150, width: 400, height: 250)
+        let uncropped = image.rendering(model.annotations)
+        let uncroppedOrigin = image.canvasRect(for: model.annotations).origin
+        model.applyCrop()
+        spin(0.4)
+        check(model.crop == CGRect(x: 200, y: 150, width: 400, height: 250) && model.tool == .select && model.cropBox == nil, "Crop applies the box and returns to Select")
+        check(model.canvasRect == model.crop! && near(canvas.frame.width, 400 / scale, 1), "the editor shows just the cropped area")
+        let cropped = model.rendered
+        check(cropped.width == 400 && cropped.height == 250 &&
+              pixel(cropped, 30, 20) == pixel(uncropped, 230 - Int(uncroppedOrigin.x), 170 - Int(uncroppedOrigin.y)), "export is exactly the cropped area")
+        model.undo()
+        check(model.crop == nil, "undo removes the crop")
+        model.redo()
+        check(model.crop != nil, "redo brings it back")
+        model.resetCrop()
+        spin(0.3)
+        check(model.crop == nil && model.canvasRect == model.contentRect && model.contentRect != CGRect(x: 200, y: 150, width: 400, height: 250), "Reset shows the whole picture again")
+
+        // MARK: Pin to screen
+        let pinned = PinWindow.pin(image)
+        spin(0.3)
+        let pinScale = pinned.screen?.backingScaleFactor ?? 2
+        check(pinned.isVisible && pinned.level == .floating && near(pinned.frame.width, CGFloat(image.width) / pinScale, 1) && near(pinned.frame.height, CGFloat(image.height) / pinScale, 1),
+              "pin floats the picture at its natural size")
+        let widthBefore = pinned.frame.width
+        pinned.resize(by: 0.5, around: CGPoint(x: pinned.frame.midX, y: pinned.frame.midY))
+        check(near(pinned.frame.width, widthBefore * 0.5, 1) && near(pinned.frame.width / pinned.frame.height, CGFloat(image.width) / CGFloat(image.height), 0.01), "scrolling resizes it, same proportions")
+        let pinEsc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: pinned.windowNumber, context: nil,
+                                      characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: UInt16(kVK_Escape))!
+        pinned.keyDown(with: pinEsc)
+        spin(0.2)
+        check(!pinned.isVisible, "Esc closes the pin")
+
+        // MARK: Scrolling capture stitcher (synthetic page with a sticky header and footer)
+        func page(width: Int, height: Int) -> CGImage {
+            let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            var seed: UInt64 = 42
+            func next(_ range: Int) -> Int { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Int(seed >> 33) % range }
+            for _ in 0..<320 {
+                context.setFillColor(CGColor(srgbRed: CGFloat(next(255)) / 255, green: CGFloat(next(255)) / 255, blue: CGFloat(next(255)) / 255, alpha: 1))
+                context.fill(CGRect(x: next(width - 40), y: next(height), width: 20 + next(180), height: 4 + next(26)))
+            }
+            return context.makeImage()!
+        }
+        let tallPage = page(width: 600, height: 2400)
+        let header = 50, footer = 30, band = 320
+        func frame(at offset: Int) -> CGImage {
+            let context = CGContext(data: nil, width: 600, height: header + band + footer, bitsPerComponent: 8, bytesPerRow: 0,
+                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            let total = header + band + footer
+            context.draw(tallPage.cropping(to: CGRect(x: 0, y: offset, width: 600, height: band))!, in: CGRect(x: 0, y: footer, width: 600, height: band))
+            context.setFillColor(CGColor(srgbRed: 0.1, green: 0.2, blue: 0.6, alpha: 1)) // sticky header (top)
+            context.fill(CGRect(x: 0, y: total - header, width: 600, height: header))
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(x: 20, y: total - 30, width: 140, height: 12))
+            context.setFillColor(CGColor(gray: 0.85, alpha: 1)) // sticky footer (bottom)
+            context.fill(CGRect(x: 0, y: 0, width: 600, height: footer))
+            context.setFillColor(CGColor(gray: 0.3, alpha: 1))
+            context.fill(CGRect(x: 400, y: 10, width: 120, height: 10))
+            return context.makeImage()!
+        }
+        var stitcher = ScrollStitcher()
+        var outcomes: [ScrollStitcher.Outcome] = []
+        for offset in [0, 0, 90, 200, 200, 330, 470, 600, 750, 900, 1100, 1300, 1500, 1700, 1900, 2080] { outcomes.append(stitcher.add(frame(at: offset))) }
+        check(outcomes.first == .started && outcomes[1] == .unchanged && outcomes[4] == .unchanged && !outcomes.contains(.lost), "frames: started, pauses ignored, every scroll matched")
+        let stitched = stitcher.image()!
+        check(stitched.height == header + 2400 + footer && stitcher.height == stitched.height, "stitched height is header + whole page + footer (\(stitched.height) px)")
+        let rowsMatch = stride(from: 0, to: 2400, by: 37).allSatisfy { y in
+            [10, 300, 590].allSatisfy { x in pixel(stitched, x, header + y) == pixel(tallPage, x, y) }
+        }
+        check(rowsMatch, "the stitched page matches the original row for row")
+        check(pixel(stitched, 5, 5) == pixel(frame(at: 0), 5, 5) && pixel(stitched, 450, stitched.height - 15) == pixel(frame(at: 0), 450, header + band + footer - 15),
+              "sticky header and footer appear once, at the top and bottom")
+        var jumpy = ScrollStitcher()
+        _ = jumpy.add(frame(at: 0))
+        check(jumpy.add(frame(at: 600)) == .lost && jumpy.add(frame(at: 150)) == .appended(rows: 150), "a jump with no overlap is skipped, the next good frame continues")
+
         // MARK: Drag and drop file
         let dragFile = try! ImageExport.temporaryFile(model.rendered)
         let loaded = CGImage.load(from: dragFile)
@@ -626,10 +743,10 @@ struct SelfCheck {
         let secondFile = try! ImageExport.temporaryFile(model.rendered)
         check(!FileManager.default.fileExists(atPath: dragFile.path) || dragFile == secondFile, "older drag files are cleaned up")
 
-        // Toolbar at the minimum width
-        window.setContentSize(NSSize(width: 720, height: 620))
+        // Toolbar at the minimum width (880)
+        window.setContentSize(NSSize(width: 880, height: 620))
         spin(0.4)
-        snapshot(window.contentView!, "toolbar-720.png")
+        snapshot(window.contentView!, "toolbar-min.png")
         window.setContentSize(NSSize(width: 900, height: 620))
 
         // MARK: Shortcut labels (needs a layout where the number row prints digits, e.g. US/UK/Spanish)

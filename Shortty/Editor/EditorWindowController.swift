@@ -31,12 +31,16 @@ final class EditorWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.appearance = NSAppearance(named: .darkAqua)
         window.isMovableByWindowBackground = false // otherwise AppKit drags the window instead of drawing
-        window.contentMinSize = NSSize(width: 720, height: 320)
+        window.contentMinSize = NSSize(width: 880, height: 320)
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: EditorView(model: model))
 
         model.onFinish = { [weak self] in self?.close() }
         model.onInsertCapture = { [weak self] in self?.captureAndInsert() }
+        model.onPin = { [weak self] image in
+            PinWindow.pin(image, near: self?.window?.frame)
+            self?.close()
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.window === self.window else { return event }
             return self.handle(event) ? nil : event
@@ -90,12 +94,12 @@ final class EditorWindowController: NSWindowController {
         let scale = screen?.backingScaleFactor ?? 2
         let maxSize = (screen?.visibleFrame.size ?? NSSize(width: 1440, height: 900)).applying(.init(scaleX: 0.85, y: 0.85))
         let natural = NSSize(width: CGFloat(image.width) / scale + 32, height: CGFloat(image.height) / scale + 32 + toolbarHeight)
-        return NSSize(width: max(720, min(natural.width, maxSize.width)), height: max(320, min(natural.height, maxSize.height)))
+        return NSSize(width: max(880, min(natural.width, maxSize.width)), height: max(320, min(natural.height, maxSize.height)))
     }
 
     private static let toolKeys: [String: EditorModel.Tool] = [
         "v": .select, "p": .pencil, "a": .arrow, "t": .text, "r": .rectangle, "o": .ellipse,
-        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText,
+        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "c": .crop,
     ]
 
     /// Editor shortcuts. Returns false to let the event through (e.g. to the text being typed). Internal for the self-check.
@@ -135,6 +139,8 @@ final class EditorWindowController: NSWindowController {
             // Back to the plain pointer: a tool → Select; on Select, deselect. Never closes the window
             // (consumed, so the panel doesn't treat it as cancel either).
             if model.tool != .select { model.tool = .select } else { model.select(nil) }
+        case kVK_Return where model.tool == .crop, kVK_ANSI_KeypadEnter where model.tool == .crop:
+            model.applyCrop()
         case kVK_Delete where hasSelection, kVK_ForwardDelete where hasSelection:
             model.deleteSelection()
         case kVK_LeftArrow where hasSelection: model.nudgeSelection(by: CGPoint(x: -step, y: 0))
