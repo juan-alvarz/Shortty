@@ -1,6 +1,6 @@
 name: Shortty
 options:
-  bundleIdPrefix: com.socialgoodsoftware
+  bundleIdPrefix: com.shortty
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -33,6 +33,6 @@ targets:
             LSItemContentTypes: [public.png, public.jpeg, public.tiff, public.heic]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.socialgoodsoftware.Shortty
+        PRODUCT_BUNDLE_IDENTIFIER: com.shortty.Shortty
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: NO

@@ -297,7 +297,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.socialgoodsoftware.Shortty;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shortty.Shortty;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -444,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.socialgoodsoftware.Shortty;
+				PRODUCT_BUNDLE_IDENTIFIER = com.shortty.Shortty;
 				SDKROOT = macosx;
 			};
 			name = Debug;

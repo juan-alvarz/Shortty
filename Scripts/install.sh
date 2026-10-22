@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-BUNDLE_ID="com.socialgoodsoftware.Shortty"
+BUNDLE_ID="com.shortty.Shortty"
 APP="/Applications/Shortty.app"
 # ".noindex" keeps Spotlight/Raycast from listing the build copies next to the installed app.
 DERIVED=".build.noindex"

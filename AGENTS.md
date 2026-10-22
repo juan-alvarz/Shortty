@@ -21,7 +21,7 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 - Every behavior change gets a check in `Scripts/SelfCheck/main.swift`; for UI changes, also look at the snapshots.
 - Only run the installed app. Build copies are signed differently and lose the Screen Recording permission.
 - Builds go to `.build.noindex/`, which keeps Spotlight and launchers from listing duplicate apps.
-- Logs: subsystem `com.socialgoodsoftware.Shortty`. Use `/usr/bin/log show`, because `log` may be a shell alias.
+- Logs: subsystem `com.shortty.Shortty`. Use `/usr/bin/log show`, because `log` may be a shell alias.
 
 ## Map
 

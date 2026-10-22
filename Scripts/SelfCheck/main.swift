@@ -419,7 +419,7 @@ struct SelfCheck {
         snapshot(window.contentView!, "editor-text.png")
 
         // MARK: Recognize Text (Live Text)
-        let board = NSPasteboard(name: NSPasteboard.Name("com.socialgoodsoftware.Shortty.selfcheck"))
+        let board = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck"))
         board.clearContents()
         model.textPasteboard = board
         model.select(nil)
@@ -608,7 +608,7 @@ struct SelfCheck {
 
         let tileFile = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-tile.png")
         try! NSBitmapImageRep(cgImage: tile).representation(using: .png, properties: [:])!.write(to: tileFile)
-        let pictureBoard = NSPasteboard(name: NSPasteboard.Name("com.socialgoodsoftware.Shortty.selfcheck.pictures"))
+        let pictureBoard = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck.pictures"))
         pictureBoard.clearContents()
         pictureBoard.writeObjects([tileFile as NSURL])
         let countBeforePaste = model.annotations.count
@@ -781,7 +781,7 @@ struct SelfCheck {
         qrCanvas.fill(CGRect(x: 0, y: 0, width: qrCanvas.width, height: qrCanvas.height))
         qrCanvas.draw(CIContext().createCGImage(qrModules, from: qrModules.extent)!, in: qrModules.extent.offsetBy(dx: 40, dy: 40))
         check(TextRecognition.readable(in: qrCanvas.makeImage()!) == .code("https://shortty.app/hello"), "Capture Text reads a QR code's link")
-        let textBoard = NSPasteboard(name: NSPasteboard.Name("com.socialgoodsoftware.Shortty.selfcheck.capturetext"))
+        let textBoard = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck.capturetext"))
         check(TextCapture.copy(.code("https://shortty.app/hello"), to: textBoard) == "Copied QR code: https://shortty.app/hello"
               && textBoard.string(forType: .string) == "https://shortty.app/hello", "a QR code's contents go to the clipboard")
         check(TextCapture.copy(.text("one\ntwo"), to: textBoard) == "Copied 2 lines of text" && textBoard.string(forType: .string) == "one\ntwo",

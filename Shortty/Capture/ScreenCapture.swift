@@ -3,7 +3,7 @@ import ImageIO
 import os
 
 enum ScreenCapture {
-    static let log = Logger(subsystem: "com.socialgoodsoftware.Shortty", category: "capture")
+    static let log = Logger(subsystem: "com.shortty.Shortty", category: "capture")
 
     /// System interactive capture (crosshair; Space toggles window mode; Esc cancels → nil).
     /// `keepAsLast: false` for pictures inserted into the editor, so "Reopen Last Capture" still means the main one.
