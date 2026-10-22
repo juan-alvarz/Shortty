@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Runs capture actions, including lazy shots, and hands results to the editor.
+/// Runs capture actions, including lazy shots, and hands results to the editor or the quick card.
 @Observable
 final class CaptureController {
     static let shared = CaptureController()
@@ -52,7 +52,17 @@ final class CaptureController {
         case .reopen:
             return // handled in perform
         }
-        if let image { EditorWindowController.shared.show(image) }
+        if let image { Self.deliver(image) }
+    }
+
+    /// A finished capture (already in the history) goes to the editor, or to the quick card when that's the setting.
+    static func deliver(_ image: CGImage) {
+        let file = CaptureHistory.shared.latest
+        if AppSettings.shared.afterCapture == .card {
+            QuickCard.show(image, file: file)
+        } else {
+            EditorWindowController.shared.show(image, file: file)
+        }
     }
 
     /// Counts down the lazy delay next to the menu bar icon (and around `region`). False when cancelled.

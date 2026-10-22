@@ -147,6 +147,19 @@ final class CanvasScrollView: NSScrollView {
     @objc private func boundsChanged() {
         model.displayedZoom = magnification
         canvas.refresh(magnification: magnification) // handles keep their on-screen size during a pinch
+        updateSelectionFrame()
+    }
+
+    /// Tells the selection bar where the selection is on screen; hidden while dragging or typing.
+    private func updateSelectionFrame() {
+        var frame: CGRect?
+        if let selected = model.selectedAnnotation, model.editingID == nil, !canvas.isBusy {
+            let box = selected.bounds.standardized, ppp = canvas.pixelsPerPoint, origin = canvas.canvasRect.origin
+            let inCanvas = CGRect(x: (box.minX - origin.x) / ppp, y: (box.minY - origin.y) / ppp, width: box.width / ppp, height: box.height / ppp)
+            let inSelf = convert(inCanvas, from: canvas)
+            frame = CGRect(x: inSelf.minX, y: isFlipped ? inSelf.minY : bounds.height - inSelf.maxY, width: inSelf.width, height: inSelf.height)
+        }
+        if model.selectionFrame != frame { model.selectionFrame = frame }
     }
 }
 

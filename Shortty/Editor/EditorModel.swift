@@ -9,6 +9,13 @@ final class EditorModel {
     private(set) var image: CGImage
     /// False until the first capture/image is loaded (the window starts with a 1px placeholder).
     private(set) var hasImage = false
+    /// The history file this capture came from, if any (the history strip highlights it).
+    private(set) var sourceFile: URL?
+    /// ⌘ is held: tool buttons show their keys.
+    var showsShortcutHints = false
+    /// Where the selection is on screen (canvas view points, top-left origin), for the selection bar.
+    /// Set by the canvas; nil while nothing is selected, a drag is in progress, or text is being typed.
+    var selectionFrame: CGRect?
     /// Bottom to top. Mutations made outside the methods below must call `recordChange(from:)` to be undoable.
     var annotations: [Annotation] = []
     var selection: Annotation.ID?
@@ -81,8 +88,9 @@ final class EditorModel {
     init(image: CGImage) { self.image = image }
 
     /// Replaces the image for a new capture and resets edits.
-    func load(_ image: CGImage) {
+    func load(_ image: CGImage, from file: URL? = nil) {
         self.image = image
+        sourceFile = file
         hasImage = true
         annotations = []
         selection = nil
@@ -265,6 +273,26 @@ final class EditorModel {
         guard let i = selectedIndex else { return }
         edit { $0.remove(at: i) }
         selection = nil
+    }
+
+    /// A copy a little down and to the right, selected.
+    func duplicateSelection() {
+        guard let selected = selectedAnnotation else { return }
+        let copy = Annotation(shape: selected.shape, color: selected.color, width: selected.width).moved(by: CGPoint(x: 24, y: 24))
+        edit { $0.append(copy) }
+        select(copy.id)
+    }
+
+    /// Draws the selection above everything else (the end of the list is the top).
+    func bringSelectionToFront() {
+        guard let i = selectedIndex, i < annotations.count - 1 else { return }
+        edit { let item = $0.remove(at: i); $0.append(item) }
+    }
+
+    /// Draws the selection under everything else, e.g. a picture behind the arrows that point at it.
+    func sendSelectionToBack() {
+        guard let i = selectedIndex, i > 0 else { return }
+        edit { let item = $0.remove(at: i); $0.insert(item, at: 0) }
     }
 
     func nudgeSelection(by offset: CGPoint) {

@@ -7,7 +7,7 @@ enum ScreenCapture {
 
     /// System interactive capture (crosshair; Space toggles window mode; Esc cancels → nil), for pictures inserted
     /// into the editor: not kept as the last capture, so "Reopen Last Capture" still means the main one.
-    static func captureRegion() async -> CGImage? { await capture(["-i"], keepAsLast: false) }
+    static func captureRegion() async -> CGImage? { await capture(["-i"], keepInHistory: false) }
 
     /// The whole display under the mouse pointer.
     static func captureScreen() async -> CGImage? {
@@ -59,7 +59,7 @@ enum ScreenCapture {
         return "\(Int(rect.minX)),\(Int(primaryHeight - rect.maxY)),\(Int(rect.width)),\(Int(rect.height))"
     }
 
-    private static func capture(_ options: [String], keepAsLast: Bool = true) async -> CGImage? {
+    private static func capture(_ options: [String], keepInHistory: Bool = true) async -> CGImage? {
         guard hasPermission() else {
             log.notice("capture skipped: Screen Recording not granted")
             return nil
@@ -75,7 +75,7 @@ enum ScreenCapture {
             showBlankCaptureAlert()
             return nil
         }
-        if keepAsLast { LastCapture.keep(url) }
+        if keepInHistory { CaptureHistory.shared.keep(url) }
         return image
     }
 
@@ -122,29 +122,6 @@ enum ScreenCapture {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
             NSWorkspace.shared.open(url)
         }
-    }
-}
-
-/// The most recent capture, kept on disk so "Reopen Last Capture" also works after a relaunch.
-enum LastCapture {
-    static let url: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent(Bundle.main.bundleIdentifier ?? "Shortty", isDirectory: true)
-        .appendingPathComponent("last-capture.png")
-
-    static var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
-    static func load() -> CGImage? { CGImage.load(from: url) }
-
-    /// Writes a capture that didn't come from a file (scrolling capture).
-    static func store(_ image: CGImage) {
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? ImageExport.writePNG(image, to: url)
-    }
-
-    /// Moves the fresh capture file into place (no re-encoding).
-    static func keep(_ file: URL) {
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.moveItem(at: file, to: url)
     }
 }
 

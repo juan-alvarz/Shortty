@@ -12,25 +12,32 @@ struct DragHandle: View {
             .foregroundStyle(hovering ? Color.white : Theme.chromeText)
             .frame(width: 28, height: 28)
             .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.08 : 0)))
-            .overlay(DragSource(model: model))
+            .overlay(DragSource {
+                model.endEditing()
+                return model.rendered
+            })
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
             .tooltip("Drag into any app", shortcut: nil, visible: hovering)
     }
 }
 
-private struct DragSource: NSViewRepresentable {
-    let model: EditorModel
-    func makeNSView(context: Context) -> DragSourceView { DragSourceView(model: model) }
+/// Drags out whatever `image` returns at the moment the drag starts; a click without a drag calls `onClick`.
+struct DragSource: NSViewRepresentable {
+    var onClick: (() -> Void)? = nil
+    let image: () -> CGImage
+    func makeNSView(context: Context) -> DragSourceView { DragSourceView(image: image, onClick: onClick) }
     func updateNSView(_ view: DragSourceView, context: Context) {}
 }
 
 final class DragSourceView: NSView, NSDraggingSource {
-    private let model: EditorModel
+    private let image: () -> CGImage
+    private let onClick: (() -> Void)?
     private var started = false
 
-    init(model: EditorModel) {
-        self.model = model
+    init(image: @escaping () -> CGImage, onClick: (() -> Void)?) {
+        self.image = image
+        self.onClick = onClick
         super.init(frame: .zero)
     }
 
@@ -39,12 +46,12 @@ final class DragSourceView: NSView, NSDraggingSource {
     override var mouseDownCanMoveWindow: Bool { false }
     override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
     override func mouseDown(with event: NSEvent) { started = false }
+    override func mouseUp(with event: NSEvent) { if !started { onClick?() } }
 
     override func mouseDragged(with event: NSEvent) {
         guard !started else { return }
         started = true
-        model.endEditing()
-        let image = model.rendered
+        let image = self.image()
         guard let file = try? ImageExport.temporaryFile(image) else { return }
         let item = NSDraggingItem(pasteboardWriter: file as NSURL)
         let scale = min(160 / CGFloat(image.width), 160 / CGFloat(image.height), 0.5)

@@ -26,6 +26,15 @@ struct GeneralSettingsView: View {
             Section("Saving") {
                 SaveFolderRow(folder: $settings.saveFolder)
             }
+            Section("Editor") {
+                Picker("Layout", selection: $settings.editorLayout) {
+                    ForEach(EditorLayout.allCases, id: \.self) { Text($0.title) }
+                }
+                Picker("After a capture", selection: $settings.afterCapture) {
+                    ForEach(AfterCapture.allCases, id: \.self) { Text($0.title) }
+                }
+                RecentCapturesRow(isOn: $settings.showsHistory)
+            }
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
@@ -87,6 +96,23 @@ private struct SaveFolderRow: View {
                 Spacer()
                 Button("Use Downloads") { folder = AppSettings.downloadsFolder }
             }
+        }
+    }
+}
+
+/// The history strip, and a way to delete what it keeps.
+private struct RecentCapturesRow: View {
+    @Binding var isOn: Bool
+    private let history = CaptureHistory.shared
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text("Show recent captures")
+            Text("Keeps your last \(CaptureHistory.limit) captures for reopening and dragging out.")
+        }
+        LabeledContent("\(history.items.count) kept") {
+            Button("Delete All", role: .destructive) { history.removeAll() }
+                .disabled(history.items.isEmpty)
         }
     }
 }

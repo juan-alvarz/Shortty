@@ -45,8 +45,8 @@ struct SelfCheck {
         if let fill { context.setFillColor(fill); context.fill(CGRect(x: 0, y: 0, width: width, height: height)) }
         return context
     }
-    static func key(_ characters: String, _ code: Int, in window: NSWindow) -> NSEvent {
-        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil,
+    static func key(_ characters: String, _ code: Int, in window: NSWindow, flags: NSEvent.ModifierFlags = [], type: NSEvent.EventType = .keyDown) -> NSEvent {
+        NSEvent.keyEvent(with: type, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: window.windowNumber, context: nil,
                          characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: UInt16(code))!
     }
 
@@ -826,9 +826,122 @@ struct SelfCheck {
               "the preview opens focused even though the app isn't frontmost (key \(editorWindow.isKeyWindow), visible \(editorWindow.isVisible), app key window \(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "none"))")
         editor.close()
 
+        // MARK: Selection bar, stacking order, shortcut hints
+        model.tool = .select
+        model.backdrop = nil
+        let boxA = Annotation(shape: .rectangle(CGRect(x: 100, y: 100, width: 120, height: 80)), color: Theme.accent)
+        let boxB = Annotation(shape: .rectangle(CGRect(x: 160, y: 140, width: 120, height: 80)), color: Theme.accent)
+        model.annotations += [boxA, boxB]
+        model.select(boxA.id)
+        spin(0.3)
+        let screenScale = canvas.frame.width / model.canvasRect.width
+        check(model.selectionFrame.map { near($0.width, 120 * screenScale * scroll.magnification, 2) && $0.minY >= 0 } == true,
+              "the selection bar knows where the selection is on screen")
+        model.select(nil)
+        spin(0.2)
+        check(model.selectionFrame == nil, "no selection, no selection bar")
+        let countBefore = model.annotations.count
+        model.select(boxA.id)
+        model.bringSelectionToFront()
+        check(model.annotations.last?.id == boxA.id, "Bring to front draws the selection on top")
+        model.sendSelectionToBack()
+        check(model.annotations.first?.id == boxA.id, "Send to back draws it under everything")
+        model.undo()
+        check(model.annotations.last?.id == boxA.id, "each reorder is one undo step")
+        model.duplicateSelection()
+        let duplicate = model.annotations.last!
+        check(model.annotations.count == countBefore + 1 && duplicate.id != boxA.id && duplicate.bounds == boxA.bounds.offsetBy(dx: 24, dy: 24)
+              && model.selection == duplicate.id, "Duplicate adds a selected copy, a little down and right")
+        model.undo()
+        check(model.annotations.count == countBefore, "undo removes the copy")
+
+        editor.show(fixture())
+        let cmd: NSEvent.ModifierFlags = .command
+        editor.model.annotations += [boxA, boxB]
+        editor.model.select(boxA.id)
+        check(editor.handle(key("]", kVK_ANSI_RightBracket, in: editorWindow, flags: cmd)) && editor.model.annotations.last?.id == boxA.id, "⌘] brings to front")
+        check(editor.handle(key("[", kVK_ANSI_LeftBracket, in: editorWindow, flags: cmd)) && editor.model.annotations.first?.id == boxA.id, "⌘[ sends to back")
+        check(editor.handle(key("d", kVK_ANSI_D, in: editorWindow, flags: cmd)) && editor.model.annotations.count == 3, "⌘D duplicates")
+        editor.modifiersChanged(key("", kVK_Command, in: editorWindow, flags: cmd, type: .flagsChanged))
+        check(editor.model.showsShortcutHints, "holding ⌘ shows the tool keys")
+        editor.modifiersChanged(key("", kVK_Command, in: editorWindow, type: .flagsChanged))
+        check(!editor.model.showsShortcutHints, "letting go of ⌘ hides them")
+        editor.modifiersChanged(key("", kVK_Shift, in: editorWindow, flags: [.command, .shift], type: .flagsChanged))
+        check(!editor.model.showsShortcutHints, "⌘ with another modifier doesn't show them")
+        editor.close()
+        model.showsShortcutHints = true
+        spin(0.3)
+        snapshot(window.contentView!, "toolbar-hints.png")
+        model.showsShortcutHints = false
+
+        // MARK: Capture history (a temporary folder, never the real Caches)
+        let historyFolder = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-history-\(UUID().uuidString)")
+        let history = CaptureHistory(folder: historyFolder)
+        for i in 0..<(CaptureHistory.limit + 2) { history.store(solid(40 + i, 30, 0.2, 0.4, 0.8)) }
+        func pngs() -> Int { ((try? FileManager.default.contentsOfDirectory(atPath: historyFolder.path)) ?? []).filter { $0.hasSuffix(".png") }.count }
+        check(history.items.count == CaptureHistory.limit && pngs() == CaptureHistory.limit && CGImage.load(from: history.latest!)?.width == 40 + CaptureHistory.limit + 1,
+              "history keeps the newest \(CaptureHistory.limit) captures, newest first")
+        check(CaptureHistory(folder: historyFolder).items == history.items, "history survives a relaunch")
+        check(CaptureHistory.date(of: history.latest!).map { abs($0.timeIntervalSinceNow) < 60 } == true, "each capture knows when it was taken")
+        let incoming = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-\(UUID().uuidString).png")
+        try? ImageExport.writePNG(solid(77, 30, 1, 0, 0), to: incoming)
+        history.keep(incoming)
+        check(!FileManager.default.fileExists(atPath: incoming.path) && CGImage.load(from: history.latest!)?.width == 77 && pngs() == CaptureHistory.limit,
+              "a new capture's file moves into the history, the oldest goes")
+        let doomed = history.items[3]
+        history.remove(doomed)
+        check(history.items.count == CaptureHistory.limit - 1 && !FileManager.default.fileExists(atPath: doomed.path), "× deletes one capture's file")
+
+        // MARK: Layouts, with the history strip (snapshots show the bars)
+        let settings = AppSettings.shared
+        let layoutModel = EditorModel(image: image)
+        layoutModel.load(image, from: history.items[1])
+        let marked = Annotation(shape: .rectangle(CGRect(x: 520, y: 300, width: 200, height: 120)), color: Theme.accent)
+        layoutModel.annotations = [marked]
+        layoutModel.tool = .select
+        let layoutWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 720),
+                                    styleMask: [.titled, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
+        layoutWindow.appearance = NSAppearance(named: .darkAqua)
+        layoutWindow.titlebarAppearsTransparent = true
+        layoutWindow.contentView = NSHostingView(rootView: EditorView(model: layoutModel, history: history))
+        layoutWindow.orderFrontRegardless()
+        for layout in EditorLayout.allCases {
+            settings.editorLayout = layout
+            layoutModel.select(marked.id)
+            spin(0.6)
+            check(find(CanvasScrollView.self, in: layoutWindow.contentView!) != nil && layoutModel.selectionFrame != nil, "\(layout.rawValue) layout: canvas and selection bar")
+            snapshot(layoutWindow.contentView!, "layout-\(layout.rawValue).png")
+        }
+        check(HistoryStrip.height(for: history) == HistoryStrip.foldedHeight, "recent captures start folded into a slim bar")
+        UserDefaults.standard.set(true, forKey: HistoryStrip.expandedKey)
+        spin(0.4)
+        check(HistoryStrip.height(for: history) == HistoryStrip.expandedHeight, "opened, the strip shows the thumbnails")
+        snapshot(layoutWindow.contentView!, "history-expanded.png")
+        UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
+        layoutWindow.close()
+        settings.editorLayout = .classic
+        UserDefaults.standard.removeObject(forKey: "editorLayout")
+        history.removeAll()
+        check(history.items.isEmpty && pngs() == 0, "the trash deletes every capture")
+        try? FileManager.default.removeItem(at: historyFolder)
+
+        // MARK: Quick card
+        let card = QuickCard.show(image, file: nil)
+        spin(0.3)
+        check(card.isVisible && !card.isKeyWindow, "the quick card shows without taking focus")
+        snapshot(card.contentView!, "quick-card.png")
+        QuickCard.dismiss()
+        check(!card.isVisible, "the quick card closes")
+        settings.afterCapture = .card
+        CaptureController.deliver(image)
+        spin(0.2)
+        check(NSApp.windows.contains { $0 is OverlayPanel && $0.isVisible } && !editorWindow.isVisible, "with the card setting, a capture shows the card instead of the editor")
+        QuickCard.dismiss()
+        settings.afterCapture = .editor
+        UserDefaults.standard.removeObject(forKey: "afterCapture")
+
         // MARK: Settings + icon
         // Save folder: saving into a missing folder creates it (temp folder, never the real Downloads)
-        let settings = AppSettings.shared
         let originalFolder = settings.saveFolder
         let saveRoot = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-save-\(UUID().uuidString)")
         let nested = saveRoot.appendingPathComponent("screens/2026", isDirectory: true)

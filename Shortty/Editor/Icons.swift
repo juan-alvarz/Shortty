@@ -2,7 +2,10 @@ import AppKit
 import SwiftUI
 
 /// Hand-drawn line icons (20×20 design grid, 1.5pt stroke) so the editor doesn't depend on SF Symbols.
-enum IconKind { case copy, save, drag, pin, insertImage, backdrop, step, crop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight, recognizeText, eyedropper }
+enum IconKind {
+    case copy, save, drag, pin, insertImage, backdrop, step, crop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight,
+         recognizeText, eyedropper, duplicate, bringToFront, sendToBack, trash, close, chevronUp
+}
 
 struct Icon: View {
     let kind: IconKind
@@ -137,6 +140,39 @@ struct Icon: View {
                 let tip = Path { $0.addLines([CGPoint(x: 11.8, y: 5.2), CGPoint(x: 14.8, y: 8.2)]) }
                 context.stroke(body, with: .foreground, style: style)
                 context.stroke(tip, with: .foreground, style: style)
+            case .duplicate:
+                // Two squares, the copy with a plus.
+                var path = Path(roundedRect: CGRect(x: 7, y: 7, width: 10.5, height: 10.5), cornerRadius: 2)
+                path.addLines([CGPoint(x: 4.5, y: 13), CGPoint(x: 2.5, y: 13), CGPoint(x: 2.5, y: 2.5), CGPoint(x: 13, y: 2.5), CGPoint(x: 13, y: 4.5)])
+                path.addLines([CGPoint(x: 12.25, y: 9.75), CGPoint(x: 12.25, y: 14.75)])
+                path.addLines([CGPoint(x: 9.75, y: 12.25), CGPoint(x: 14.75, y: 12.25)])
+                context.stroke(path, with: .foreground, style: style)
+            case .bringToFront, .sendToBack:
+                // Two overlapping squares; the filled one is on top (front) or underneath (back).
+                let back = CGRect(x: 2.5, y: 2.5, width: 10, height: 10), front = CGRect(x: 7.5, y: 7.5, width: 10, height: 10)
+                let (filled, outlined) = kind == .bringToFront ? (front, back) : (back, front)
+                var under = context
+                if kind == .bringToFront { under.clip(to: Path(front.insetBy(dx: -1.4, dy: -1.4)), options: .inverse) }
+                under.stroke(Path(roundedRect: outlined, cornerRadius: 2), with: .foreground, style: style)
+                var over = context
+                if kind == .sendToBack { over.clip(to: Path(front.insetBy(dx: -1.4, dy: -1.4)), options: .inverse) }
+                over.fill(Path(roundedRect: filled, cornerRadius: 2), with: .foreground)
+            case .trash:
+                var path = Path()
+                path.addLines([CGPoint(x: 3.5, y: 5.5), CGPoint(x: 16.5, y: 5.5)])
+                path.addLines([CGPoint(x: 7.5, y: 5.5), CGPoint(x: 7.5, y: 3), CGPoint(x: 12.5, y: 3), CGPoint(x: 12.5, y: 5.5)])
+                path.addLines([CGPoint(x: 5, y: 5.5), CGPoint(x: 6, y: 17), CGPoint(x: 14, y: 17), CGPoint(x: 15, y: 5.5)])
+                path.addLines([CGPoint(x: 8.5, y: 8.5), CGPoint(x: 8.5, y: 14)])
+                path.addLines([CGPoint(x: 11.5, y: 8.5), CGPoint(x: 11.5, y: 14)])
+                context.stroke(path, with: .foreground, style: style)
+            case .close:
+                var path = Path()
+                path.addLines([CGPoint(x: 5, y: 5), CGPoint(x: 15, y: 15)])
+                path.addLines([CGPoint(x: 15, y: 5), CGPoint(x: 5, y: 15)])
+                context.stroke(path, with: .foreground, style: style)
+            case .chevronUp:
+                context.stroke(Path { $0.addLines([CGPoint(x: 4, y: 13), CGPoint(x: 10, y: 7), CGPoint(x: 16, y: 13)]) }, with: .foreground,
+                               style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
             }
         }
         .frame(width: size, height: size)

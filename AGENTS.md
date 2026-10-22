@@ -28,9 +28,9 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | Path | What lives there |
 |---|---|
 | `Shortty/App` | Entry point and menu bar menu, `AppDelegate`, `AppSettings` (UserDefaults-backed, `@Observable`) |
-| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`, `LastCapture` file for reopen), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
+| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`), `CaptureHistory` (last 20 captures in Caches; reopen and the history strip), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
-| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (toolbar, color popover, floating tool options panel), `Icons`, `Theme` |
+| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
 | `Scripts` | install, signing cert, icon renderer, self-check |
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
@@ -43,6 +43,10 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 3. In `EditorCanvas`, create the shape in `mouseDown` and update it in `update(to:shift:pointerMoved:)`. Add grips if the 8-box handles don't fit.
 4. Give it a default thickness in `EditorModel.toolWidths` and map the shape back to it in `Annotation.tool`.
 5. Add a toolbar button (`EditorView`), an icon (`Icons.swift`, 20pt grid, 1.5pt stroke), a key in `EditorWindowController.toolKeys`, and a README row.
+
+**New editor control.** Build it once as a view in `EditorView.swift`, then place it in each layout
+(`EditorToolbar`/`OptionsStrip`, `SlimBar`/`ToolRail`/`Inspector`, `FloatingChrome`). Check every layout's
+snapshot (`layout-*.png`); tooltips follow `\.tooltipEdge` (below in bars, beside the rail, above the dock).
 
 **New setting.** Add a property to `AppSettings` (its `didSet` persists; load it in `init`), then add a control in `SettingsView`.
 

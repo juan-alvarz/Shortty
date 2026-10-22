@@ -11,7 +11,7 @@ final class ScrollCaptureSession {
     static func capture() async -> CGImage? {
         guard let region = await RegionSelector.select(hint: "Drag over the area you'll scroll   ·   Esc to cancel") else { return nil }
         let image = await ScrollCaptureSession(region: region).run()
-        if let image { LastCapture.store(image) }
+        if let image { CaptureHistory.shared.store(image) }
         return image
     }
 

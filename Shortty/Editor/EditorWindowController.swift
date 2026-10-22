@@ -12,7 +12,6 @@ private final class EditorPanel: NSPanel {
 /// The single editor window. A new capture replaces the content instead of opening another window.
 final class EditorWindowController: NSWindowController {
     static let shared = EditorWindowController()
-    private static let toolbarHeight: CGFloat = 52
 
     let model: EditorModel
 
@@ -30,7 +29,6 @@ final class EditorWindowController: NSWindowController {
         window.titlebarAppearsTransparent = true
         window.appearance = NSAppearance(named: .darkAqua)
         window.isMovableByWindowBackground = false // otherwise AppKit drags the window instead of drawing
-        window.contentMinSize = NSSize(width: 880, height: 320)
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: EditorView(model: model))
 
@@ -44,20 +42,30 @@ final class EditorWindowController: NSWindowController {
             guard let self, event.window === self.window else { return event }
             return self.handle(event) ? nil : event
         }
+        // Holding ⌘ alone shows each tool's key on its button.
+        _ = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            guard let self, event.window === self.window else { return event }
+            self.modifiersChanged(event)
+            return event
+        }
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.model.showsShortcutHints = false }
+        }
+        fitLayout()
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
-    /// Loads a new image (edits reset) and brings the window up.
-    func show(_ image: CGImage) {
+    /// Loads a new image (edits reset) and brings the window up. `file`: where it's kept in the capture history.
+    func show(_ image: CGImage, file: URL? = nil) {
         guard let window else { return }
-        model.load(image)
-        window.setContentSize(Self.size(for: image))
+        model.load(image, from: file)
+        window.setContentSize(Self.size(for: image, layout: AppSettings.shared.editorLayout))
         if !window.isVisible { window.center() }
         present()
     }
 
-    var canReopen: Bool { model.hasImage || LastCapture.exists }
+    var canReopen: Bool { model.hasImage || CaptureHistory.shared.latest != nil }
 
     /// "Capture New Area" in the insert menu: steps aside so the editor isn't in the way, then adds the capture.
     func captureAndInsert() {
@@ -73,8 +81,8 @@ final class EditorWindowController: NSWindowController {
     func reopen() {
         if model.hasImage {
             present()
-        } else if let image = LastCapture.load() {
-            show(image)
+        } else if let file = CaptureHistory.shared.latest, let image = CGImage.load(from: file) {
+            show(image, file: file)
         }
     }
 
@@ -87,19 +95,37 @@ final class EditorWindowController: NSWindowController {
         window.orderFrontRegardless()
     }
 
-    /// Natural size (1 image px = 1 screen px) plus toolbar, clamped to 85% of the screen.
-    private static func size(for image: CGImage) -> NSSize {
+    /// Natural size (1 image px = 1 screen px) plus the layout's bars, clamped to 85% of the screen.
+    private static func size(for image: CGImage, layout: EditorLayout) -> NSSize {
         let screen = NSScreen.main
         let scale = screen?.backingScaleFactor ?? 2
         let maxSize = (screen?.visibleFrame.size ?? NSSize(width: 1440, height: 900)).applying(.init(scaleX: 0.85, y: 0.85))
-        let natural = NSSize(width: CGFloat(image.width) / scale + 32, height: CGFloat(image.height) / scale + 32 + toolbarHeight)
-        return NSSize(width: max(880, min(natural.width, maxSize.width)), height: max(320, min(natural.height, maxSize.height)))
+        let historyHeight = HistoryStrip.height(for: CaptureHistory.shared)
+        let natural = NSSize(width: CGFloat(image.width) / scale + 32 + layout.chrome.width,
+                             height: CGFloat(image.height) / scale + 32 + layout.chrome.height + historyHeight)
+        return NSSize(width: max(layout.minWidth, min(natural.width, maxSize.width)), height: max(320, min(natural.height, maxSize.height)))
+    }
+
+    /// Keeps the window at least as wide as the current layout needs, also when the setting changes while it's open.
+    private func fitLayout() {
+        let minWidth = withObservationTracking { AppSettings.shared.editorLayout.minWidth } onChange: { [weak self] in
+            Task { @MainActor in self?.fitLayout() }
+        }
+        guard let window else { return }
+        window.contentMinSize = NSSize(width: minWidth, height: 320)
+        let size = window.contentLayoutRect.size
+        if size.width < minWidth { window.setContentSize(NSSize(width: minWidth, height: size.height)) }
     }
 
     private static let toolKeys: [String: EditorModel.Tool] = [
         "v": .select, "p": .pencil, "a": .arrow, "t": .text, "r": .rectangle, "o": .ellipse,
         "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "c": .crop,
     ]
+
+    /// Holding ⌘ alone shows each tool's key on its button. Internal for the self-check.
+    func modifiersChanged(_ event: NSEvent) {
+        model.showsShortcutHints = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+    }
 
     /// Editor shortcuts. Returns false to let the event through (e.g. to the text being typed). Internal for the self-check.
     func handle(_ event: NSEvent) -> Bool {
@@ -124,6 +150,9 @@ final class EditorWindowController: NSWindowController {
             case "s": model.save()
             case "v": if model.insertImages(from: .general) == 0 { model.toast = "No picture on the clipboard" }
             case "z": flags.contains(.shift) ? model.redo() : model.undo()
+            case "d": model.duplicateSelection()
+            case "]": model.bringSelectionToFront()
+            case "[": model.sendSelectionToBack()
             case "=", "+": model.zoomIn()
             case "-": model.zoomOut()
             case "0": model.zoomToFit()

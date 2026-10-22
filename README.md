@@ -20,12 +20,27 @@ Native Swift (SwiftUI + AppKit), lives in the menu bar, no third-party dependenc
 
 All of them are in the menu bar too. During a countdown the seconds show next to the menu bar icon, and the menu has
 "Cancel Lazy Shot". Shortcuts and the lazy delay (1–30 s, default 3) are in Settings → Shortcuts. Settings → General
-has Start at login, the capture sound, and the folder Save writes to. The latest capture is kept at
-`~/Library/Caches/com.shortty.Shortty/last-capture.png` so it can be reopened; each new capture replaces it.
+has Start at login, the capture sound, the folder Save writes to, and the editor's layout.
+
+The last 20 captures are kept in `~/Library/Caches/com.shortty.Shortty/History`, the newest replacing the oldest.
+Settings → General → Delete All removes them.
+
+**After a capture**, Shortty opens the editor, or (Settings → After a capture) shows a small card in the corner of
+the screen with Copy, Save, Pin and Edit. Drag the card's picture into any app, or click it to edit. The card doesn't
+take focus from the app you're in and goes away on its own unless the pointer is over it.
 
 ## Edit
 
-Every capture opens in one reused editor window.
+Every capture opens in one reused editor window. Settings → Layout arranges it four ways:
+
+| Layout | Arrangement |
+|---|---|
+| Classic | One toolbar with everything; tool options float at the top right of the picture. |
+| Two rows | The toolbar, then a strip with the current tool's options, the colors, size and zoom. Nothing covers the picture. |
+| Sidebars | Tools in a column on the left, options, colors and backdrop on the right, Copy and Save at the top. |
+| Canvas first | The picture fills the window; tools sit in a floating dock at the bottom, output actions at the top right. |
+
+Hold `⌘` to see each tool's key on its button.
 
 | Key | Tool / action |
 |---|---|
@@ -36,6 +51,8 @@ Every capture opens in one reused editor window.
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |
 | Arrows / Shift+Arrows | Nudge the selection 1 px / 10 px |
 | `⌫` | Delete the selection |
+| `⌘D` | Duplicate the selection |
+| `⌘]` / `⌘[` | Bring the selection to the front / send it to the back |
 | `⌘Z` / `⌘⇧Z` | Undo / redo |
 | `⌘C` / `⌘S` | Copy / save as `shortty-<timestamp>-image.png` in your save folder (Downloads unless you pick another) |
 | `⌘V` | Paste a picture from the clipboard into the canvas |
@@ -64,6 +81,13 @@ layer, and arrows or text drawn on top stay bright.
 
 **Recognize Text**: macOS Live Text over the screenshot. The text is highlighted; drag over it to select exactly what
 you want and press ⌘C (or Copy in the panel). Copy All takes every word. On-device, nothing is uploaded.
+
+**Selection bar**: whatever is selected gets a small bar above it with its color, Duplicate, Bring to front,
+Send to back and Delete. Bring to front and Send to back set what covers what, for example a picture behind the
+arrows that point at it.
+
+**Recent captures**: a strip along the bottom of the editor shows the last 20 captures. Click one to open it, drag
+one into any app, hover and click × to delete one, or use the trash to delete them all. Settings can hide the strip.
 
 **Drag and drop**: drag the handle next to Save into any app or a website's upload box. It hands over a temporary
 PNG, so nothing piles up in Downloads.
