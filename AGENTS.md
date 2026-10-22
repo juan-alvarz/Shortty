@@ -66,7 +66,7 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
 - **Draw order.** `drawAnnotations(_:on:)` paints blur/erase first, then one shared spotlight dim, then everything
   else in list order. Effects read pixels from the base image passed in, never from other annotations.
 - **Blur Text / Erase Text.** Text boxes are derived data: call `refreshTextBoxes` after the area changes (the canvas
-  does it on mouse up). Vision `.fast` runs synchronously there; OCR (`.accurate`) runs in a detached task.
+  does it on mouse up). Vision `.fast` runs synchronously there. Recognize Text is separate: Live Text (VisionKit).
 - **Exclusivity crash.** Inside `edit { }`, never read `annotations` or `selectedIndex`; look the index up first.
 - **Concurrency.** Default isolation is MainActor. Completion handlers from system APIs (e.g. `NSColorSampler`)
   hop back with `Task { @MainActor in … }`, carrying plain values.
