@@ -7,6 +7,7 @@ enum ScrollCapture {
     static func run() async -> CGImage? {
         guard ScreenCapture.hasPermission() else { return nil }
         guard let region = await RegionSelector.select(hint: "Drag over the area you'll scroll   ·   Esc to cancel") else { return nil }
+        try? await Task.sleep(for: .milliseconds(80)) // the selection overlay must be gone before the first frame
         let image = await ScrollCaptureSession(region: region).run()
         if let image { LastCapture.store(image) }
         return image

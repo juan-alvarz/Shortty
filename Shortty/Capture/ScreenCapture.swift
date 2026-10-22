@@ -33,6 +33,30 @@ enum ScreenCapture {
 
     static func hasPermission() -> Bool { ensurePermission() }
 
+    /// Click a window to capture it (no shadow).
+    static func captureWindow() async -> CGImage? { await capture(["-i", "-W", "-o"]) }
+
+    /// The frontmost app's front window, no clicking (no shadow).
+    static func captureActiveWindow() async -> CGImage? {
+        guard let app = NSWorkspace.shared.frontmostApplication, let id = frontWindowID(of: app.processIdentifier) else {
+            NSSound.beep()
+            return nil
+        }
+        return await capture(["-l", "\(id)", "-o"])
+    }
+
+    /// The app's frontmost normal window (on screen, layer 0, not a sliver). The list comes front to back.
+    static func frontWindowID(of pid: pid_t) -> CGWindowID? {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let window = windows.first { info in
+            guard info[kCGWindowOwnerPID as String] as? pid_t == pid, info[kCGWindowLayer as String] as? Int == 0,
+                  let bounds = info[kCGWindowBounds as String] as! CFDictionary?, let rect = CGRect(dictionaryRepresentation: bounds)
+            else { return false }
+            return rect.width > 40 && rect.height > 40
+        }
+        return window?[kCGWindowNumber as String] as? CGWindowID
+    }
+
     /// A fixed rectangle in global AppKit coordinates (bottom-left origin).
     static func captureRect(_ rect: CGRect) async -> CGImage? {
         await capture(["-R", rectArgument(rect)])

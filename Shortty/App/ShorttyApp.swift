@@ -33,8 +33,13 @@ private struct CaptureMenu: View {
             Divider()
         }
         item(.region)
+        item(.repeatRegion)
         item(.screen)
+        item(.window)
+        item(.activeWindow)
         item(.scrolling)
+        Divider()
+        item(.captureText)
         Divider()
         item(.lazyRegion)
         item(.lazyScreen)

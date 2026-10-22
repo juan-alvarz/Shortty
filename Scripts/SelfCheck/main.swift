@@ -2,6 +2,7 @@
 // Run via Scripts/selfcheck.sh. Add a check here for every new editor behavior.
 import AppKit
 import Carbon.HIToolbox
+import CoreImage
 import SwiftUI
 import VisionKit
 
@@ -751,6 +752,46 @@ struct SelfCheck {
         spin(0.4)
         snapshot(window.contentView!, "toolbar-min.png")
         window.setContentSize(NSSize(width: 900, height: 620))
+
+        // MARK: Capture actions from Shottr's list
+        let ids = Dictionary(uniqueKeysWithValues: CaptureAction.allCases.map { ($0, $0.hotkeyID) })
+        check(ids[.region] == 1 && ids[.screen] == 2 && ids[.lazyRegion] == 3 && ids[.lazyScreen] == 4 && ids[.reopen] == 5 && ids[.scrolling] == 6
+              && Set(ids.values).count == CaptureAction.allCases.count, "existing shortcut ids are unchanged, new ones are unique")
+        check(RegionSelector.keyAction(for: kVK_Escape, allowsWindow: true) == .cancel
+              && RegionSelector.keyAction(for: kVK_Space, allowsWindow: true) == .pickWindow
+              && RegionSelector.keyAction(for: kVK_Space, allowsWindow: false) == nil, "selector: Esc cancels, Space picks a window only for Capture Region")
+        let savedRegion = CaptureController.lastRegion
+        CaptureController.lastRegion = CGRect(x: 120, y: 340, width: 500, height: 260)
+        check(CaptureController.lastRegion == CGRect(x: 120, y: 340, width: 500, height: 260), "Repeat Last Region remembers the area")
+        CaptureController.lastRegion = savedRegion
+        window.orderFrontRegardless()
+        spin(0.3)
+        check(ScreenCapture.frontWindowID(of: ProcessInfo.processInfo.processIdentifier) == CGWindowID(window.windowNumber),
+              "Capture Active Window finds the app's front window")
+
+        let textArea = CGRect(x: 100, y: 560, width: 520, height: 60)
+        let readText = TextRecognition.readable(in: image.cropping(to: textArea)!)
+        if case .text(let text)? = readText { check(text.contains("Shortty"), "Capture Text reads text (\(text))") } else { check(false, "Capture Text reads text") }
+        let qrFilter = CIFilter(name: "CIQRCodeGenerator")!
+        qrFilter.setValue("https://shortty.app/hello".data(using: .utf8), forKey: "inputMessage")
+        let qrModules = qrFilter.outputImage!.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let qrCanvas = CGContext(data: nil, width: Int(qrModules.extent.width) + 80, height: Int(qrModules.extent.height) + 80, bitsPerComponent: 8, bytesPerRow: 0,
+                                 space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        qrCanvas.setFillColor(CGColor(gray: 1, alpha: 1))
+        qrCanvas.fill(CGRect(x: 0, y: 0, width: qrCanvas.width, height: qrCanvas.height))
+        qrCanvas.draw(CIContext().createCGImage(qrModules, from: qrModules.extent)!, in: qrModules.extent.offsetBy(dx: 40, dy: 40))
+        check(TextRecognition.readable(in: qrCanvas.makeImage()!) == .code("https://shortty.app/hello"), "Capture Text reads a QR code's link")
+        let textBoard = NSPasteboard(name: NSPasteboard.Name("com.socialgoodsoftware.Shortty.selfcheck.capturetext"))
+        check(TextCapture.copy(.code("https://shortty.app/hello"), to: textBoard) == "Copied QR code: https://shortty.app/hello"
+              && textBoard.string(forType: .string) == "https://shortty.app/hello", "a QR code's contents go to the clipboard")
+        check(TextCapture.copy(.text("one\ntwo"), to: textBoard) == "Copied 2 lines of text" && textBoard.string(forType: .string) == "one\ntwo",
+              "text goes to the clipboard, the notice counts lines")
+        check(TextCapture.copy(nil, to: textBoard) == "No text found", "nothing found says so")
+        let notice = FloatingToast.show("Copied 2 lines of text", near: CGRect(x: 300, y: 300, width: 200, height: 100), for: 0.5)
+        spin(0.2)
+        check(notice.isVisible && notice.ignoresMouseEvents, "the floating notice appears and lets clicks through")
+        spin(1.0)
+        check(!notice.isVisible, "and goes away by itself")
 
         // MARK: Shortcut labels (needs a layout where the number row prints digits, e.g. US/UK/Spanish)
         check(Hotkey.keyName(for: UInt32(kVK_ANSI_0)) == "0" && Hotkey.keyName(for: UInt32(kVK_ANSI_Backslash)) == "\\", "shortcut labels use the key, not the shifted symbol")

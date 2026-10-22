@@ -103,8 +103,12 @@ struct ShortcutsSettingsView: View {
         Form {
             Section("Capture") {
                 shortcutRow("Region", .region)
+                shortcutRow("Repeat last region", .repeatRegion)
                 shortcutRow("Screen", .screen)
+                shortcutRow("Window (click to pick)", .window)
+                shortcutRow("Active window", .activeWindow)
                 shortcutRow("Scrolling", .scrolling)
+                shortcutRow("Text or QR code", .captureText)
                 shortcutRow("Reopen last capture", .reopen)
             }
             Section {

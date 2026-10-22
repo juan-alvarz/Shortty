@@ -478,8 +478,8 @@ private struct SegmentButton<Label: View>: View {
     }
 }
 
-/// Short confirmation at the bottom of the canvas.
-private struct Toast: View {
+/// Short confirmation: at the bottom of the canvas, or floating (FloatingToast) when there's no editor.
+struct Toast: View {
     let text: String
 
     var body: some View {

@@ -1,7 +1,8 @@
 import CoreGraphics
 import Vision
 
-/// On-device text detection (Vision) for Blur Text / Erase Text. Recognize Text uses Live Text (VisionKit) instead.
+/// On-device Vision: line boxes for Blur Text / Erase Text, and Capture Text's text-or-QR reading.
+/// (Recognize Text in the editor uses Live Text instead.)
 nonisolated enum TextRecognition {
     /// Boxes around each line of text inside `rect` (image px, top-left origin), padded a little. Fast mode.
     static func lineBoxes(in image: CGImage, rect: CGRect) -> [CGRect] {
@@ -19,5 +20,29 @@ nonisolated enum TextRecognition {
             return line.insetBy(dx: -pad, dy: -pad)
         }
     }
+
+    /// Capture Text: a QR code / barcode's contents if there is one, else the text (lines top to bottom). Accurate mode.
+    static func readable(in image: CGImage) -> Readable? {
+        let codes = VNDetectBarcodesRequest()
+        let text = VNRecognizeTextRequest()
+        text.recognitionLevel = .accurate
+        text.usesLanguageCorrection = true
+        text.automaticallyDetectsLanguage = true
+        try? VNImageRequestHandler(cgImage: image).perform([codes, text])
+        let payloads = (codes.results ?? []).compactMap(\.payloadStringValue)
+        if !payloads.isEmpty { return .code(payloads.joined(separator: "\n")) }
+        let lines = (text.results ?? [])
+            .sorted { abs($0.boundingBox.maxY - $1.boundingBox.maxY) > 0.01 ? $0.boundingBox.maxY > $1.boundingBox.maxY : $0.boundingBox.minX < $1.boundingBox.minX }
+            .compactMap { $0.topCandidates(1).first?.string }
+        return lines.isEmpty ? nil : .text(lines.joined(separator: "\n"))
+    }
 }
 
+nonisolated enum Readable: Equatable, Sendable {
+    case code(String), text(String)
+}
+
+/// Lets a CGImage (immutable) cross into a background task.
+nonisolated struct SendableImage: @unchecked Sendable {
+    let image: CGImage
+}

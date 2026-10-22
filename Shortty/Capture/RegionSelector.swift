@@ -4,9 +4,28 @@ import Carbon.HIToolbox
 /// Full-screen crosshair overlay to drag out a rectangle, without stealing focus from the frontmost app.
 /// Returns the rectangle in global AppKit coordinates (bottom-left origin), or nil on Esc / right-click.
 enum RegionSelector {
+    enum Selection: Equatable { case area(CGRect), window }
+    enum KeyAction: Equatable { case cancel, pickWindow }
+
+    /// An area only.
     static func select(hint: String = "Drag to select the lazy shot area   ·   Esc to cancel") async -> CGRect? {
+        if case .area(let rect)? = await choose(hint: hint, allowsWindow: false) { return rect }
+        return nil
+    }
+
+    /// An area, or (with `allowsWindow`) Space to switch to clicking a window, like the system's ⌘⇧4.
+    static func choose(hint: String, allowsWindow: Bool) async -> Selection? {
         await withCheckedContinuation { continuation in
-            SelectionSession(hint: hint) { continuation.resume(returning: $0) }.begin()
+            SelectionSession(hint: hint, allowsWindow: allowsWindow) { continuation.resume(returning: $0) }.begin()
+        }
+    }
+
+    /// Keys while selecting: Esc cancels; Space picks a window when that's allowed.
+    static func keyAction(for keyCode: Int, allowsWindow: Bool) -> KeyAction? {
+        switch keyCode {
+        case kVK_Escape: .cancel
+        case kVK_Space where allowsWindow: .pickWindow
+        default: nil
         }
     }
 }
@@ -31,11 +50,13 @@ private final class OverlayPanel: NSPanel {
 private final class SelectionSession {
     private static var active: SelectionSession? // keeps the session alive while on screen
     private var panels: [OverlayPanel] = []
-    private var finish: ((CGRect?) -> Void)?
+    private var finish: ((RegionSelector.Selection?) -> Void)?
     private let hint: String
+    private let allowsWindow: Bool
 
-    init(hint: String, finish: @escaping (CGRect?) -> Void) {
+    init(hint: String, allowsWindow: Bool, finish: @escaping (RegionSelector.Selection?) -> Void) {
         self.hint = hint
+        self.allowsWindow = allowsWindow
         self.finish = finish
     }
 
@@ -46,8 +67,13 @@ private final class SelectionSession {
             let panel = OverlayPanel(screen: screen)
             let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
             view.hint = hint
-            view.onFinish = { [weak self, weak panel] rect in
-                self?.end(rect.flatMap { panel?.convertToScreen($0) })
+            view.allowsWindow = allowsWindow
+            view.onFinish = { [weak self, weak panel] selection in
+                switch selection {
+                case .area(let rect)?: self?.end(panel.map { .area($0.convertToScreen(rect)) })
+                case .window?: self?.end(.window)
+                case nil: self?.end(nil)
+                }
             }
             panel.contentView = view
             panels.append(panel)
@@ -61,20 +87,22 @@ private final class SelectionSession {
         NSCursor.crosshair.set()
     }
 
-    private func end(_ rect: CGRect?) {
+    private func end(_ selection: RegionSelector.Selection?) {
         panels.forEach { $0.orderOut(nil) }
         panels.removeAll()
         NSCursor.arrow.set()
         let finish = self.finish
         self.finish = nil
         Self.active = nil
-        finish?(rect)
+        finish?(selection)
     }
 }
 
 private final class SelectionView: NSView {
-    var onFinish: ((CGRect?) -> Void)?
+    /// Areas are in this view's coordinates; the session converts them to the screen.
+    var onFinish: ((RegionSelector.Selection?) -> Void)?
     var hint = ""
+    var allowsWindow = false
     private var anchor: CGPoint?
     private var selection: CGRect?
 
@@ -92,7 +120,11 @@ private final class SelectionView: NSView {
     override func mouseMoved(with event: NSEvent) { NSCursor.crosshair.set() }
 
     override func keyDown(with event: NSEvent) {
-        if Int(event.keyCode) == kVK_Escape { onFinish?(nil) } else { super.keyDown(with: event) }
+        switch RegionSelector.keyAction(for: Int(event.keyCode), allowsWindow: allowsWindow) {
+        case .cancel: onFinish?(nil)
+        case .pickWindow: onFinish?(.window)
+        case nil: super.keyDown(with: event)
+        }
     }
 
     override func rightMouseDown(with event: NSEvent) { onFinish?(nil) }
@@ -119,7 +151,7 @@ private final class SelectionView: NSView {
             needsDisplay = true
             return
         }
-        onFinish?(selection)
+        onFinish?(.area(selection))
     }
 
     /// Clamped to this screen: a selection never spans displays.

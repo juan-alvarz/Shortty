@@ -17,6 +17,7 @@
 		53C8A8486894E2DB9839A8AB /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA16053C98819512A9FC897 /* HotkeyManager.swift */; };
 		6C057F2C7A9E3A768EAE55A6 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEDFB80BEE0944A20848BCBD /* Theme.swift */; };
 		6ED8B24724A874B0D7BA300A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41AA6B596EB6CC161428EBC7 /* Assets.xcassets */; };
+		72C94D3ECA5FDB3CDA35042A /* TextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7845EF05EE7FEAECC8733A /* TextCapture.swift */; };
 		78ED274A3E97373E29D4FF8D /* ImageExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D92EE158689CD51AD95D04ED /* ImageExport.swift */; };
 		7DB9A698B1E585B3555137FF /* Arrow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 796DCAD3F4B813967C121324 /* Arrow.swift */; };
 		802230C49DCD4B367043D00E /* HotkeyRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30FFC51D368719B1E9FF0AFD /* HotkeyRecorder.swift */; };
@@ -28,6 +29,7 @@
 		AA839FBEEF78927FFB7C7440 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C72872894B067891FDAB6D5D /* EditorView.swift */; };
 		AAEC589ABEC78FEB05B2409A /* Icons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD3D747FF5AB32C294F7946 /* Icons.swift */; };
 		B613E27C51B5A41213982071 /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D3C4069CF2E06B7281757E /* TextRecognition.swift */; };
+		C2269DE7C000E3CC427AEBCC /* FloatingToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F0848AB96555AEC52E3587 /* FloatingToast.swift */; };
 		D1CE10DCD7E2918BD9D1ACDB /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */; };
 		D5CA6C1A0168C7E19F2B23F6 /* ScrollStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */; };
 		E0355470B16B0B1C0E6F43D1 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E67EC2996327FAED2B61B3 /* CaptureController.swift */; };
@@ -49,9 +51,11 @@
 		41AA6B596EB6CC161428EBC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		46A0D1DF7ABD400F75CEE78B /* DragHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandle.swift; sourceTree = "<group>"; };
 		52F10276AE6A02A26B9A976A /* EditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorModel.swift; sourceTree = "<group>"; };
+		54F0848AB96555AEC52E3587 /* FloatingToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingToast.swift; sourceTree = "<group>"; };
 		5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollStitcher.swift; sourceTree = "<group>"; };
 		5D9FE5C68B274F0B8385EE5D /* Effects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effects.swift; sourceTree = "<group>"; };
 		796DCAD3F4B813967C121324 /* Arrow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Arrow.swift; sourceTree = "<group>"; };
+		7A7845EF05EE7FEAECC8733A /* TextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCapture.swift; sourceTree = "<group>"; };
 		7BC4816D2FA9B0822F685E95 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		87D3C4069CF2E06B7281757E /* TextRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextRecognition.swift; sourceTree = "<group>"; };
 		8899207AD6EFBA9DEED53F0D /* ScreenCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCapture.swift; sourceTree = "<group>"; };
@@ -123,10 +127,12 @@
 			children = (
 				95AFF7AE1B4BB6A766132B37 /* CaptureAction.swift */,
 				A6E67EC2996327FAED2B61B3 /* CaptureController.swift */,
+				54F0848AB96555AEC52E3587 /* FloatingToast.swift */,
 				8E8827E5E5785422431746A3 /* RegionSelector.swift */,
 				8899207AD6EFBA9DEED53F0D /* ScreenCapture.swift */,
 				341C04DB5D26889F57FCDE62 /* ScrollCapture.swift */,
 				5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */,
+				7A7845EF05EE7FEAECC8733A /* TextCapture.swift */,
 			);
 			path = Capture;
 			sourceTree = "<group>";
@@ -257,6 +263,7 @@
 				AA839FBEEF78927FFB7C7440 /* EditorView.swift in Sources */,
 				1E8E27097FC1E9C6840A8C7F /* EditorWindowController.swift in Sources */,
 				52B1B808F8EADCC4FC8072FE /* Effects.swift in Sources */,
+				C2269DE7C000E3CC427AEBCC /* FloatingToast.swift in Sources */,
 				A618E16E1595401D4DA4720B /* Hotkey.swift in Sources */,
 				53C8A8486894E2DB9839A8AB /* HotkeyManager.swift in Sources */,
 				802230C49DCD4B367043D00E /* HotkeyRecorder.swift in Sources */,
@@ -270,6 +277,7 @@
 				3569C6FBCBB830D384A97272 /* SettingsView.swift in Sources */,
 				95DEBD9D9F4F582AE373458A /* ShorttyApp.swift in Sources */,
 				0B00E38B0750E79B6EEBAD5D /* Text.swift in Sources */,
+				72C94D3ECA5FDB3CDA35042A /* TextCapture.swift in Sources */,
 				B613E27C51B5A41213982071 /* TextRecognition.swift in Sources */,
 				6C057F2C7A9E3A768EAE55A6 /* Theme.swift in Sources */,
 			);
@@ -282,7 +290,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = Shortty/Resources/Info.plist;
@@ -430,7 +437,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_HARDENED_RUNTIME = NO;
 				INFOPLIST_FILE = Shortty/Resources/Info.plist;
