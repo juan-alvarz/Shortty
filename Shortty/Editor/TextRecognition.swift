@@ -1,7 +1,7 @@
 import CoreGraphics
 import Vision
 
-/// On-device text recognition (Vision). Nonisolated so OCR can run off the main thread.
+/// On-device text detection (Vision) for Blur Text / Erase Text. Recognize Text uses Live Text (VisionKit) instead.
 nonisolated enum TextRecognition {
     /// Boxes around each line of text inside `rect` (image px, top-left origin), padded a little. Fast mode.
     static func lineBoxes(in image: CGImage, rect: CGRect) -> [CGRect] {
@@ -19,21 +19,5 @@ nonisolated enum TextRecognition {
             return line.insetBy(dx: -pad, dy: -pad)
         }
     }
-
-    /// The text in `image`, one string per line, top to bottom. Accurate mode.
-    static func lines(in image: CGImage) -> [String] {
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
-        try? VNImageRequestHandler(cgImage: image).perform([request])
-        return (request.results ?? [])
-            .sorted { abs($0.boundingBox.maxY - $1.boundingBox.maxY) > 0.01 ? $0.boundingBox.maxY > $1.boundingBox.maxY : $0.boundingBox.minX < $1.boundingBox.minX }
-            .compactMap { $0.topCandidates(1).first?.string }
-    }
 }
 
-/// Lets a CGImage (immutable) cross into a background task.
-nonisolated struct SendableImage: @unchecked Sendable {
-    let image: CGImage
-}

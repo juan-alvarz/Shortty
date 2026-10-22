@@ -120,6 +120,7 @@ final class EditorWindowController: NSWindowController {
 
         if flags.contains(.command) {
             switch key {
+            case "c" where model.tool == .recognizeText && model.hasTextSelection: model.copySelectedText?()
             case "c": model.copy()
             case "s": model.save()
             case "v": if model.insertImages(from: .general) == 0 { model.toast = "No picture on the clipboard" }

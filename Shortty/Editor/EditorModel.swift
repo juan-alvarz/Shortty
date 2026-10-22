@@ -40,6 +40,12 @@ final class EditorModel {
     var toast: String?
     /// Where recognized text goes. The self-check swaps in a private pasteboard.
     @ObservationIgnored var textPasteboard: NSPasteboard = .general
+    /// Recognize Text mode: every word Live Text found in the picture; nil until it has looked.
+    var recognizedText: String?
+    /// Live Text has a selection (the panel offers Copy, ⌘C copies text instead of the image).
+    var hasTextSelection = false
+    /// Set by the canvas: copies the current Live Text selection.
+    @ObservationIgnored var copySelectedText: (() -> Void)?
     /// Gradient Backdrop: nil = off. Applies to the whole result (shown live and exported).
     var backdrop: Backdrop?
     /// "Capture new area" in the insert menu; the window controller hides the editor, captures, and inserts.
@@ -89,6 +95,8 @@ final class EditorModel {
         selection = nil
         crop = nil
         cropBox = nil
+        recognizedText = nil
+        hasTextSelection = false
         undoStack = []
         redoStack = []
         zoom = nil
@@ -114,12 +122,13 @@ final class EditorModel {
     /// The floating options panel: for any drawing tool, or when something is selected.
     var showsOptions: Bool {
         if let selected = selectedAnnotation { return !selected.isImage } // inserted pictures have nothing to adjust
-        return tool != .select && tool != .recognizeText
+        return tool != .select
     }
     var showsArrowStyles: Bool { optionsTool == .arrow }
     var showsTextStyles: Bool { optionsTool == .text }
     /// Erase has nothing to adjust.
-    var showsWidthSlider: Bool { optionsTool != .crop && (optionsTool != .blur || redactStyle.usesStrength) } // crop has buttons instead
+    /// Crop and Recognize Text have buttons instead; erase has nothing to adjust.
+    var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && (optionsTool != .blur || redactStyle.usesStrength) }
     var currentWidthRange: ClosedRange<CGFloat> { Self.widthRange(for: optionsTool) }
 
     /// What the thickness slider shows: the selection's width, else the current tool's.
@@ -168,23 +177,21 @@ final class EditorModel {
         annotations[i].shape = .redact(rect: rect, style: style, textBoxes: boxes)
     }
 
-    /// Recognize Text mode: copies the text inside `rect` to the clipboard and says so in a toast.
-    func recognizeText(in rect: CGRect) {
-        let pasteboard = textPasteboard
-        let area = rect.standardized.integral.intersection(image.bounds)
-        guard !area.isNull, area.width >= 4, area.height >= 4, let crop = image.cropping(to: area) else { return }
-        toast = "Reading text…"
-        let job = SendableImage(image: crop)
-        Task {
-            let lines = await Task.detached(priority: .userInitiated) { TextRecognition.lines(in: job.image) }.value
-            guard !lines.isEmpty else {
-                toast = "No text found"
-                return
-            }
-            pasteboard.clearContents()
-            pasteboard.setString(lines.joined(separator: "\n"), forType: .string)
-            toast = "Copied \(lines.count == 1 ? "1 line" : "\(lines.count) lines") of text"
+    // MARK: Recognize Text (Live Text)
+
+    /// Copies text to the clipboard (or the self-check's private pasteboard) and says so.
+    func copyText(_ text: String, message: String) {
+        textPasteboard.clearContents()
+        textPasteboard.setString(text, forType: .string)
+        toast = message
+    }
+
+    func copyAllText() {
+        guard let text = recognizedText, !text.isEmpty else {
+            toast = "No text found"
+            return
         }
+        copyText(text, message: "Copied all text")
     }
 
     func setTextStyle(_ style: TextStyle) {

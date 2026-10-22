@@ -3,6 +3,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import VisionKit
 
 @MainActor
 @main
@@ -416,25 +417,27 @@ struct SelfCheck {
         spin(0.3)
         snapshot(window.contentView!, "editor-text.png")
 
-        // MARK: Recognize Text
-        func waitForToast() {
-            for _ in 0..<100 where !(model.toast ?? "").hasPrefix("Copied") && model.toast != "No text found" { spin(0.1) }
-        }
+        // MARK: Recognize Text (Live Text)
         let board = NSPasteboard(name: NSPasteboard.Name("com.socialgoodsoftware.Shortty.selfcheck"))
         board.clearContents()
         model.textPasteboard = board
         model.select(nil)
-        model.tool = .recognizeText
-        check(!model.showsOptions, "Recognize Text has no options panel")
         let countBeforeOCR = model.annotations.count
-        drag(CGPoint(x: 100, y: 560), CGPoint(x: 620, y: 620))
-        waitForToast()
-        check(model.annotations.count == countBeforeOCR, "Recognize Text adds nothing to the image")
-        check(board.string(forType: .string)?.contains("Shortty") == true && model.toast == "Copied 1 line of text",
-              "Recognize Text copies the words (\(board.string(forType: .string) ?? "nil"), toast: \(model.toast ?? "nil"))")
-        drag(CGPoint(x: 850, y: 40), CGPoint(x: 950, y: 70))
-        for _ in 0..<100 where model.toast != "No text found" { spin(0.1) }
-        check(model.toast == "No text found", "an area without text says so")
+        model.tool = .recognizeText
+        for _ in 0..<150 where model.recognizedText == nil { spin(0.1) }
+        check(model.recognizedText?.contains("Shortty") == true, "Live Text finds the picture's text (\(model.recognizedText ?? "nil"))")
+        let liveText = find(ImageAnalysisOverlayView.self, in: canvas)
+        let pointsPerPixel = canvas.frame.width / model.canvasRect.width
+        check(liveText.map { !$0.isHidden && near($0.frame.width, CGFloat(image.width) * pointsPerPixel, 1) && near($0.frame.height, CGFloat(image.height) * pointsPerPixel, 1) } == true,
+              "the Live Text layer covers the picture")
+        check(model.showsOptions && !model.showsWidthSlider && !model.hasTextSelection, "panel with Copy All, no slider, nothing selected yet")
+        model.copyAllText()
+        check(board.string(forType: .string)?.contains("Hello Shortty 42") == true && model.toast == "Copied all text", "Copy All copies every word")
+        check(model.annotations.count == countBeforeOCR, "Recognize Text adds nothing to the picture")
+        snapshot(window.contentView!, "editor-livetext.png")
+        model.tool = .select
+        spin(0.2)
+        check(liveText?.isHidden == true, "leaving the mode hides Live Text")
 
         // MARK: Blur / Erase
         func only(_ annotation: Annotation) -> CGImage { image.rendering([annotation]) }

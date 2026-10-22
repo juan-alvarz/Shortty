@@ -58,7 +58,8 @@ area with the color around it, Erase Text erases only the text. Text is found on
 **Spotlight**: dims everything except the area (rectangle or ellipse, dim slider) and outlines it in the current color. Several spotlights share one dim
 layer, and arrows or text drawn on top stay bright.
 
-**Recognize Text**: drag over any area and its text is copied to the clipboard (on-device, nothing is uploaded).
+**Recognize Text**: macOS Live Text over the screenshot. The text is highlighted; drag over it to select exactly what
+you want and press ⌘C (or Copy in the panel). Copy All takes every word. On-device, nothing is uploaded.
 
 **Drag and drop**: drag the handle next to Save into any app or a website's upload box. It hands over a temporary
 PNG, so nothing piles up in Downloads.

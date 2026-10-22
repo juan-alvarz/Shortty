@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import VisionKit
 
 /// Image + annotations inside a native NSScrollView: pinch and ⌘-wheel zoom anchored at the pointer,
 /// scrolling when zoomed in, centered when smaller than the window.
@@ -79,6 +80,7 @@ final class CanvasScrollView: NSScrollView {
             _ = model.backdrop
             _ = model.crop
             _ = model.cropBox
+            _ = model.tool
         } onChange: { [weak self] in
             Task { @MainActor in
                 self?.syncFromModel()
@@ -256,8 +258,6 @@ private final class CanvasView: NSView {
         case reshaping(original: Annotation, grip: Grip)
         /// One lens of a magnifier: the source area, or the enlarged copy.
         case movingLens(original: Annotation, target: Bool, start: CGPoint)
-        /// Recognize Text: a temporary selection, not an annotation.
-        case recognizing(start: CGPoint)
         /// Crop tool: dragging out, resizing or moving the box (not an annotation either).
         case cropping(start: CGPoint)
         case cropResize(box: CGRect, handle: Handle)
@@ -267,7 +267,7 @@ private final class CanvasView: NSView {
             switch self {
             case .drawing(let id, _): id
             case .moving(let original, _), .resizing(let original, _, _), .reshaping(let original, _), .movingLens(let original, _, _): original.id
-            case .recognizing, .cropping, .cropResize, .cropMove: nil
+            case .cropping, .cropResize, .cropMove: nil
             }
         }
     }
@@ -292,6 +292,9 @@ private final class CanvasView: NSView {
     private(set) var pixelsPerPoint: CGFloat = 2
     /// Called when a mouse drag ends, so the scroll view can grow the canvas to fit what was drawn.
     var onDragEnd: (() -> Void)?
+    /// Recognize Text: Apple's Live Text layer over the picture (native highlighting, selection, ⌘C, right-click).
+    private var liveText: ImageAnalysisOverlayView?
+    private var analyzedImage: CGImage?
     /// Mid-drag or mid-typing: the canvas size stays put so nothing jumps under the pointer.
     var isBusy: Bool { drag != nil || model.editingID != nil }
 
@@ -333,6 +336,7 @@ private final class CanvasView: NSView {
 
     func annotationsChanged() {
         overlay.needsDisplay = true
+        updateLiveText()
         if drawnPlate.content != model.contentRect || drawnPlate.backdrop != model.backdrop {
             drawnPlate = (model.contentRect, model.backdrop)
             imageView.needsDisplay = true
@@ -427,8 +431,7 @@ private final class CanvasView: NSView {
             drag = Self.moveDrag(for: hit, at: point)
             NSCursor.closedHand.set()
         } else if model.tool == .recognizeText {
-            drag = .recognizing(start: point)
-            return
+            return // Live Text handles clicks on the picture; around it there's nothing to do
         } else if model.tool == .crop {
             drag = cropDrag(at: point)
             return
@@ -503,11 +506,6 @@ private final class CanvasView: NSView {
             if let box = model.cropBox, box.width < 4 || box.height < 4 { model.cropBox = nil }
             return
         default: break
-        }
-        if case .recognizing = drag {
-            if let area = overlay.recognizeArea { model.recognizeText(in: area) }
-            overlay.recognizeArea = nil
-            return
         }
         if case .drawing(let id, _) = drag, let index = model.annotations.firstIndex(where: { $0.id == id }),
            model.annotations[index].isDegenerate {
@@ -636,9 +634,6 @@ private final class CanvasView: NSView {
             let shifted = { (rect: CGRect) in rect.offsetBy(dx: offset.x, dy: offset.y) }
             moved.shape = .magnifier(source: movingTarget ? source : shifted(source), target: movingTarget ? shifted(target) : target, shape: shape)
             replace(moved)
-        case .recognizing(let start):
-            overlay.recognizeArea = Annotation.dragRect(from: start, to: point, square: false)
-            overlay.needsDisplay = true
         case .cropping(let start):
             setCropBox(Annotation.dragRect(from: start, to: point, square: shift))
         case .cropResize(let box, let handle):
@@ -670,6 +665,49 @@ private final class CanvasView: NSView {
     private func replace(_ annotation: Annotation) {
         guard let index = model.annotations.firstIndex(where: { $0.id == annotation.id }) else { return }
         model.annotations[index] = annotation
+    }
+
+    // MARK: Live Text (Recognize Text mode)
+
+    /// Shows Live Text over the picture while Recognize Text is the tool (analyzing each new picture once), hides it otherwise.
+    private func updateLiveText() {
+        guard model.tool == .recognizeText, ImageAnalyzer.isSupported else {
+            liveText?.isHidden = true
+            if model.hasTextSelection { model.hasTextSelection = false }
+            return
+        }
+        let overlay = liveText ?? makeLiveText()
+        overlay.isHidden = false
+        let image = model.image
+        overlay.frame = CGRect(x: -canvasRect.minX / pixelsPerPoint, y: -canvasRect.minY / pixelsPerPoint,
+                               width: CGFloat(image.width) / pixelsPerPoint, height: CGFloat(image.height) / pixelsPerPoint)
+        guard analyzedImage !== image else { return }
+        analyzedImage = image
+        overlay.analysis = nil
+        model.recognizedText = nil
+        model.toast = "Finding text…"
+        Task {
+            let analysis = try? await ImageAnalyzer().analyze(image, orientation: .up, configuration: ImageAnalyzer.Configuration([.text]))
+            guard analyzedImage === image else { return } // a newer picture arrived meanwhile
+            overlay.analysis = analysis
+            overlay.selectableItemsHighlighted = true // show where the text is
+            let text = analysis?.transcript ?? ""
+            model.recognizedText = text
+            model.toast = text.isEmpty ? "No text found" : nil
+        }
+    }
+
+    private func makeLiveText() -> ImageAnalysisOverlayView {
+        let overlay = ImageAnalysisOverlayView()
+        overlay.preferredInteractionTypes = .textSelection
+        overlay.delegate = self
+        addSubview(overlay) // above the picture and annotations
+        liveText = overlay
+        model.copySelectedText = { [weak self, weak overlay] in
+            guard let self, let text = overlay?.selectedText, !text.isEmpty else { return }
+            self.model.copyText(text, message: "Copied")
+        }
+        return overlay
     }
 
     // MARK: Inline text editor
@@ -720,6 +758,15 @@ private final class CanvasView: NSView {
         textEditor = editor
         return editor
     }
+}
+
+extension CanvasView: ImageAnalysisOverlayViewDelegate {
+    func textSelectionDidChange(_ overlayView: ImageAnalysisOverlayView) {
+        model.hasTextSelection = overlayView.hasActiveTextSelection
+    }
+
+    /// The overlay spans exactly the picture.
+    func contentsRect(for overlayView: ImageAnalysisOverlayView) -> CGRect { CGRect(x: 0, y: 0, width: 1, height: 1) }
 }
 
 extension CanvasView: NSTextViewDelegate {
@@ -792,8 +839,6 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
     var canvasRect: CGRect = .zero
     var pixelsPerPoint: CGFloat = 2
     var showsSize = false
-    /// Recognize Text: the area being dragged out (image px).
-    var recognizeArea: CGRect?
 
     init(model: EditorModel) {
         self.model = model
@@ -818,16 +863,6 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
         context.drawAnnotations(model.annotations, on: model.image, canvas: model.contentRect, hidingTextOf: model.editingID)
         context.restoreGState()
 
-        if let area = recognizeArea {
-            let rect = CGRect(x: area.minX / pixelsPerPoint, y: area.minY / pixelsPerPoint, width: area.width / pixelsPerPoint, height: area.height / pixelsPerPoint)
-            NSColor(Theme.accent).withAlphaComponent(0.12).setFill()
-            rect.fill()
-            let outline = NSBezierPath(rect: rect)
-            outline.lineWidth = 1.5 * screenPoint
-            outline.setLineDash([5 * screenPoint, 3 * screenPoint], count: 2, phase: 0)
-            NSColor(Theme.accent).setStroke()
-            outline.stroke()
-        }
 
         if model.tool == .crop, let crop = model.cropBox {
             drawCropBox(crop, screenPoint: screenPoint)

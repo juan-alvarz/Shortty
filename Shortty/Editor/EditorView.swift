@@ -323,6 +323,10 @@ private struct ToolOptionsBar: View {
                 CropOptions(model: model)
             }
 
+            if model.optionsTool == .recognizeText {
+                RecognizeTextOptions(model: model)
+            }
+
             if model.optionsTool == .spotlight || model.optionsTool == .magnifier {
                 Segments(items: AreaShape.allCases, selected: model.optionsTool == .spotlight ? model.spotlightShape : model.magnifierShape) { shape in
                     Icon(kind: shape.icon, size: 16).frame(width: 26)
@@ -364,6 +368,33 @@ private struct ToolOptionsBar: View {
         case .step: "Size"
         default: "Thickness"
         }
+    }
+}
+
+/// Recognize Text: status while Live Text looks, then Copy (for a selection) and Copy All.
+private struct RecognizeTextOptions: View {
+    @Bindable var model: EditorModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            switch model.recognizedText {
+            case nil:
+                hint("Finding text…")
+            case let text? where text.isEmpty:
+                hint("No text found")
+            default:
+                if model.hasTextSelection {
+                    PanelButton(title: "Copy", prominent: true) { model.copySelectedText?() }
+                } else {
+                    hint("Drag over text to select it")
+                }
+                PanelButton(title: "Copy All") { model.copyAllText() }
+            }
+        }
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text).font(.system(size: 12)).foregroundStyle(Theme.chromeText)
     }
 }
 
