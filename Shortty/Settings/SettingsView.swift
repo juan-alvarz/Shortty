@@ -1,5 +1,6 @@
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     var body: some View {
@@ -62,6 +63,7 @@ private struct LaunchAtLoginToggle: View {
 /// Where Save writes: shows the folder, lets you pick another, or go back to Downloads.
 private struct SaveFolderRow: View {
     @Binding var folder: URL
+    @State private var choosing = false
 
     var body: some View {
         LabeledContent("Save to") {
@@ -71,27 +73,20 @@ private struct SaveFolderRow: View {
                     .truncationMode(.middle)
                     .foregroundStyle(.secondary)
                     .help(folder.path)
-                Button("Choose…") { choose() }
+                Button("Choose…") { choosing = true }
             }
         }
+        .fileImporter(isPresented: $choosing, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { folder = url }
+        }
+        .fileDialogDefaultDirectory(folder)
+        .fileDialogConfirmationLabel("Use Folder")
+        .fileDialogMessage("Where should Shortty save screenshots?")
         if folder.standardizedFileURL != AppSettings.downloadsFolder.standardizedFileURL {
             HStack {
                 Spacer()
                 Button("Use Downloads") { folder = AppSettings.downloadsFolder }
             }
-        }
-    }
-
-    private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.directoryURL = folder
-        panel.prompt = "Use Folder"
-        panel.message = "Where should Shortty save screenshots?"
-        panel.begin { response in
-            if response == .OK, let url = panel.url { folder = url }
         }
     }
 }
@@ -114,7 +109,7 @@ struct ShortcutsSettingsView: View {
             Section {
                 shortcutRow("Region", .lazyRegion)
                 shortcutRow("Screen", .lazyScreen)
-                LabeledContent("Delay") { DelayField(seconds: $settings.lazyDelay) }
+                LabeledContent("Delay") { delayField }
             } header: {
                 Text("Lazy shots")
             } footer: {
@@ -136,37 +131,18 @@ struct ShortcutsSettingsView: View {
                 set: { settings.hotkeys[action] = $0 }))
         }
     }
-}
 
-/// Digits only, 1–30. Valid values save as you type; anything else snaps back when you leave the field.
-private struct DelayField: View {
-    @Binding var seconds: Int
-    @State private var text = ""
-    @FocusState private var focused: Bool
-    private let range = AppSettings.lazyDelayRange
-
-    var body: some View {
-        HStack(spacing: 6) {
-            TextField("", text: $text)
+    /// Saves on Return or when you leave the field, clamped to 1–30; anything that isn't a number snaps back.
+    private var delayField: some View {
+        let range = AppSettings.lazyDelayRange
+        return HStack(spacing: 6) {
+            TextField("", value: Binding(get: { settings.lazyDelay }, set: { settings.lazyDelay = $0.clamped(to: range) }), format: .number)
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 44)
-                .focused($focused)
-                .onSubmit(normalize)
-                .onChange(of: text) { _, newValue in
-                    let digits = String(newValue.filter(\.isNumber).prefix(2))
-                    if digits != newValue { text = digits; return }
-                    guard let value = Int(digits) else { return }
-                    if value > range.upperBound { text = "\(range.upperBound)"; return }
-                    if range.contains(value) { seconds = value }
-                }
-                .onChange(of: focused) { _, isFocused in if !isFocused { normalize() } }
             Text("seconds").foregroundStyle(.secondary)
         }
         .help("Between \(range.lowerBound) and \(range.upperBound) seconds")
-        .onAppear { text = "\(seconds)" }
     }
-
-    private func normalize() { text = "\(seconds)" }
 }

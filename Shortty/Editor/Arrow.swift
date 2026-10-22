@@ -1,17 +1,11 @@
 import CoreGraphics
+import Foundation // String.capitalized
 
 /// Shottr's four arrow looks: hollow outline, solid tapered, thin line, double-headed line.
 enum ArrowStyle: String, CaseIterable {
     case outline, solid, line, double
 
-    var title: String {
-        switch self {
-        case .outline: "Outline"
-        case .solid: "Solid"
-        case .line: "Line"
-        case .double: "Double"
-        }
-    }
+    var title: String { rawValue.capitalized }
 }
 
 /// Quadratic curve from `start` to `end`. `bend` is how far the arrow's middle sits off the straight line (signed, px).
@@ -65,13 +59,8 @@ struct ArrowShape {
 
         switch style {
         case .line, .double:
-            var headLength = max(width * 3.2, 10)
-            var headHalf = headLength * 0.5
-            let limit = length * (style == .double ? 0.4 : 0.6) // short arrows get smaller heads
-            if headLength > limit, headLength > 0 {
-                headHalf *= limit / headLength
-                headLength = limit
-            }
+            let headLength = min(max(width * 3.2, 10), length * (style == .double ? 0.4 : 0.6)) // short arrows get smaller heads
+            let headHalf = headLength * 0.5
             var (shaft, endBase) = trimEnd(points, by: headLength)
             let heads = CGMutablePath()
             addHead(to: heads, base: endBase, tip: end, halfWidth: headHalf)
@@ -87,12 +76,8 @@ struct ArrowShape {
             fill = heads
 
         case .solid, .outline:
-            var headLength = max(width * 3, 12)
-            var headHalf = max(width * 1.6, 7)
-            if headLength > length * 0.6, headLength > 0 {
-                headHalf *= length * 0.6 / headLength
-                headLength = length * 0.6
-            }
+            let fullHead = max(width * 3, 12), headLength = min(fullHead, length * 0.6) // short arrows get smaller heads
+            let headHalf = max(width * 1.6, 7) * headLength / fullHead
             // Tapered body: thin at the tail, full width where it meets the head.
             let tailHalf = width * 0.15, neckHalf = width * 0.5
             let (shaft, base) = trimEnd(points, by: headLength)

@@ -3,21 +3,17 @@ import Observation
 import SwiftUI
 
 /// Scrolling capture: pick an area, scroll the page, press Done. Frames are captured and stitched as you scroll.
-enum ScrollCapture {
-    static func run() async -> CGImage? {
-        guard ScreenCapture.hasPermission() else { return nil }
-        guard let region = await RegionSelector.select(hint: "Drag over the area you'll scroll   ·   Esc to cancel") else { return nil }
-        try? await Task.sleep(for: .milliseconds(80)) // the selection overlay must be gone before the first frame
-        let image = await ScrollCaptureSession(region: region).run()
-        if let image { LastCapture.store(image) }
-        return image
-    }
-}
-
 @Observable
 final class ScrollCaptureSession {
     private enum State { case running, done, cancelled }
     static let maxHeight = 30_000
+
+    static func capture() async -> CGImage? {
+        guard let region = await RegionSelector.select(hint: "Drag over the area you'll scroll   ·   Esc to cancel") else { return nil }
+        let image = await ScrollCaptureSession(region: region).run()
+        if let image { LastCapture.store(image) }
+        return image
+    }
 
     let region: CGRect
     private(set) var height = 0
@@ -59,33 +55,17 @@ final class ScrollCaptureSession {
 }
 
 /// Small floating panel next to the area: progress, Done (Return) and Cancel (Esc).
-private final class ScrollCapturePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
-
-    init(session: ScrollCaptureSession) {
+/// Small floating panel next to the area: progress, Done (Return) and Cancel (Esc).
+/// Below the area, else above it, else inside its bottom edge (the only case where it can show in frames).
+private final class ScrollCapturePanel: OverlayPanel {
+    convenience init(session: ScrollCaptureSession) {
         let content = NSHostingView(rootView: ScrollCaptureHUD(session: session))
-        let size = content.fittingSize
-        super.init(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        level = .screenSaver
-        isOpaque = false
-        backgroundColor = .clear
+        self.init(contentRect: NSRect(origin: .zero, size: content.fittingSize), level: .screenSaver)
         hasShadow = true
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         contentView = content
-        setFrameOrigin(Self.origin(for: size, beside: session.region))
+        place(beside: session.region, gap: 12)
         orderFrontRegardless()
         makeKey() // Return / Esc work; scrolling still goes to the page under the pointer
-    }
-
-    /// Below the area, else above it, else inside its bottom edge (the only case where it can show in frames).
-    private static func origin(for size: CGSize, beside region: CGRect) -> CGPoint {
-        let screen = NSScreen.screens.first { $0.frame.intersects(region) }?.visibleFrame ?? region
-        let x = min(max(region.midX - size.width / 2, screen.minX + 8), screen.maxX - size.width - 8)
-        if region.minY - size.height - 12 >= screen.minY { return CGPoint(x: x, y: region.minY - size.height - 12) }
-        if region.maxY + size.height + 12 <= screen.maxY { return CGPoint(x: x, y: region.maxY + 12) }
-        return CGPoint(x: x, y: region.minY + 12)
     }
 }
 

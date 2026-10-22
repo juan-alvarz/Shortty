@@ -5,9 +5,9 @@ import os
 enum ScreenCapture {
     static let log = Logger(subsystem: "com.shortty.Shortty", category: "capture")
 
-    /// System interactive capture (crosshair; Space toggles window mode; Esc cancels → nil).
-    /// `keepAsLast: false` for pictures inserted into the editor, so "Reopen Last Capture" still means the main one.
-    static func captureRegion(keepAsLast: Bool = true) async -> CGImage? { await capture(["-i"], keepAsLast: keepAsLast) }
+    /// System interactive capture (crosshair; Space toggles window mode; Esc cancels → nil), for pictures inserted
+    /// into the editor: not kept as the last capture, so "Reopen Last Capture" still means the main one.
+    static func captureRegion() async -> CGImage? { await capture(["-i"], keepAsLast: false) }
 
     /// The whole display under the mouse pointer.
     static func captureScreen() async -> CGImage? {
@@ -16,22 +16,13 @@ enum ScreenCapture {
         return await capture(["-D", "\(display)"])
     }
 
-    /// One quiet frame of a fixed area for scrolling capture: no sound, not kept as the last capture.
+    /// One quiet frame of a fixed area (scrolling capture, Capture Text): no sound, not kept as the last capture.
     /// TIFF because it's the fastest format for `screencapture` to write and us to read (~120 ms a frame).
     static func frame(of rect: CGRect) async -> CGImage? {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-frame-\(UUID().uuidString).tiff")
+        let (url, _) = await screencapture(["-x", "-R", rectArgument(rect)], type: "tiff")
         defer { try? FileManager.default.removeItem(at: url) }
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = ["-x", "-R", rectArgument(rect), "-t", "tiff", url.path]
-        await withCheckedContinuation { continuation in
-            process.terminationHandler = { _ in continuation.resume() }
-            do { try process.run() } catch { continuation.resume() }
-        }
         return CGImage.load(from: url)
     }
-
-    static func hasPermission() -> Bool { ensurePermission() }
 
     /// Click a window to capture it (no shadow).
     static func captureWindow() async -> CGImage? { await capture(["-i", "-W", "-o"]) }
@@ -69,28 +60,15 @@ enum ScreenCapture {
     }
 
     private static func capture(_ options: [String], keepAsLast: Bool = true) async -> CGImage? {
-        guard ensurePermission() else {
+        guard hasPermission() else {
             log.notice("capture skipped: Screen Recording not granted")
             return nil
         }
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("shortty-\(UUID().uuidString).png")
+        let (url, result) = await screencapture((AppSettings.shared.captureSound ? [] : ["-x"]) + options, type: "png")
         defer { try? FileManager.default.removeItem(at: url) }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = (AppSettings.shared.captureSound ? [] : ["-x"]) + options + ["-t", "png", url.path]
-        let stderr = Pipe()
-        process.standardError = stderr
-
-        await withCheckedContinuation { continuation in
-            process.terminationHandler = { _ in continuation.resume() }
-            do { try process.run() } catch { continuation.resume() }
-        }
-        let errorText = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         let image = CGImage.load(from: url)
         let summary = image.map { "\($0.width)x\($0.height) blank=\($0.isBlank)" } ?? "no file"
-        log.notice("screencapture \(options, privacy: .public) exit=\(process.terminationStatus) image=\(summary, privacy: .public) stderr=\(errorText, privacy: .public)")
+        log.notice("screencapture \(options, privacy: .public) \(result, privacy: .public) image=\(summary, privacy: .public)")
 
         guard let image else { return nil } // cancelled
         guard !image.isBlank else {
@@ -101,9 +79,25 @@ enum ScreenCapture {
         return image
     }
 
+    /// Runs `screencapture` into a new temp file, which the caller deletes. Also returns "exit=… stderr=…" for the log.
+    private static func screencapture(_ arguments: [String], type: String) async -> (URL, String) {
+        let url = URL.temporaryDirectory.appending(path: "shortty-\(UUID().uuidString).\(type)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = arguments + ["-t", type, url.path]
+        let stderr = Pipe()
+        process.standardError = stderr
+        await withCheckedContinuation { continuation in
+            process.terminationHandler = { _ in continuation.resume() }
+            do { try process.run() } catch { continuation.resume() }
+        }
+        let errorText = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        return (url, "exit=\(process.terminationStatus) stderr=\(errorText)")
+    }
+
     /// Without Screen Recording, captures come back blank. Ask once via the system prompt;
     /// after that macOS never re-prompts, so send the user straight to the settings pane.
-    private static func ensurePermission() -> Bool {
+    static func hasPermission() -> Bool {
         if CGPreflightScreenCaptureAccess() { return true }
         let askedKey = "didRequestScreenCapture"
         if !UserDefaults.standard.bool(forKey: askedKey) {

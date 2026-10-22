@@ -13,7 +13,9 @@ enum ImageExport {
     @discardableResult
     static func save(_ image: CGImage, to folder: URL) throws -> URL {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let url = folder.appendingPathComponent(fileName())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let url = folder.appendingPathComponent("shortty-\(formatter.string(from: .now))-image.png")
         try writePNG(image, to: url)
         return url
     }
@@ -22,16 +24,7 @@ enum ImageExport {
     static func temporaryFile(_ image: CGImage) throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Shortty Drag", isDirectory: true)
         try? FileManager.default.removeItem(at: folder)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let url = folder.appendingPathComponent(fileName())
-        try writePNG(image, to: url)
-        return url
-    }
-
-    private static func fileName() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "shortty-\(formatter.string(from: .now))-image.png"
+        return try save(image, to: folder)
     }
 
     static func writePNG(_ image: CGImage, to url: URL) throws {

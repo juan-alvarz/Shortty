@@ -15,7 +15,6 @@ final class EditorWindowController: NSWindowController {
     private static let toolbarHeight: CGFloat = 52
 
     let model: EditorModel
-    private var keyMonitor: Any?
 
     private init() {
         model = EditorModel(image: Self.placeholder)
@@ -41,7 +40,7 @@ final class EditorWindowController: NSWindowController {
             PinWindow.pin(image, near: self?.window?.frame)
             self?.close()
         }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        _ = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in // lives as long as the app
             guard let self, event.window === self.window else { return event }
             return self.handle(event) ? nil : event
         }
@@ -64,7 +63,7 @@ final class EditorWindowController: NSWindowController {
     func captureAndInsert() {
         window?.orderOut(nil)
         Task {
-            let picture = await ScreenCapture.captureRegion(keepAsLast: false)
+            let picture = await ScreenCapture.captureRegion()
             present()
             if let picture { model.insertImage(picture) }
         }

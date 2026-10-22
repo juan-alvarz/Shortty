@@ -3,9 +3,9 @@ import Carbon.HIToolbox
 
 /// A screenshot floating above every window ("pin to screen"). Drag to move, scroll or pinch to resize,
 /// double-click or Esc to close; right-click for Copy / Save / Close. Several can be pinned at once.
-final class PinWindow: NSPanel {
+final class PinWindow: OverlayPanel {
     private static var open: [PinWindow] = []
-    private let image: CGImage
+    private var image: CGImage { (contentView as! PinView).image }
 
     /// Pins `image` at its natural size (clamped to the screen), centered on `near` when given.
     @discardableResult
@@ -24,24 +24,20 @@ final class PinWindow: NSPanel {
         return window
     }
 
-    private init(image: CGImage, frame: NSRect) {
-        self.image = image
-        super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        level = .floating
+    /// Convenience, so the panel setup comes from `OverlayPanel`. The picture lives in the content view.
+    private convenience init(image: CGImage, frame: NSRect) {
+        self.init(contentRect: frame, level: .floating)
         isMovableByWindowBackground = true
         hasShadow = true
-        isOpaque = false
-        backgroundColor = .clear
-        hidesOnDeactivate = false
-        isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        contentAspectRatio = frame.size
-        let view = PinView(image: image)
-        view.onClose = { [weak self] in self?.close() }
-        contentView = view
+        let menu = NSMenu() // right-click; the same actions as the keys below
+        menu.autoenablesItems = false
+        menu.addItem(withTitle: "Copy", action: #selector(copyImage), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Save", action: #selector(saveImage), keyEquivalent: "").target = self
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Close", action: #selector(close), keyEquivalent: "").target = self
+        contentView = PinView(image: image)
+        contentView?.menu = menu
     }
-
-    override var canBecomeKey: Bool { true }
 
     override func close() {
         super.close()
@@ -61,18 +57,20 @@ final class PinWindow: NSPanel {
     override func keyDown(with event: NSEvent) {
         let command = event.modifierFlags.contains(.command)
         switch (command, event.charactersIgnoringModifiers?.lowercased() ?? "") {
-        case (true, "c"): ImageExport.copy(image)
-        case (true, "s"): _ = try? ImageExport.save(image, to: AppSettings.shared.saveFolder)
+        case (true, "c"): copyImage()
+        case (true, "s"): saveImage()
         case (true, "w"): close()
         case (false, _) where Int(event.keyCode) == kVK_Escape: close()
         default: super.keyDown(with: event)
         }
     }
+
+    @objc private func copyImage() { ImageExport.copy(image) }
+    @objc private func saveImage() { _ = try? ImageExport.save(image, to: AppSettings.shared.saveFolder) }
 }
 
 private final class PinView: NSView {
-    private let image: CGImage
-    var onClose: (() -> Void)?
+    let image: CGImage
 
     init(image: CGImage) {
         self.image = image
@@ -82,6 +80,7 @@ private final class PinView: NSView {
         layer?.masksToBounds = true
         layer?.borderWidth = 1
         layer?.borderColor = NSColor.white.withAlphaComponent(0.18).cgColor
+        layer?.minificationFilter = .trilinear // smooth when shrunk
         toolTip = "Drag to move · scroll to resize · double-click or Esc to close"
     }
 
@@ -89,15 +88,11 @@ private final class PinView: NSView {
 
     override var mouseDownCanMoveWindow: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-
-    override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.interpolationQuality = .high
-        context.draw(image, in: bounds)
-    }
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() { layer?.contents = image } // the layer scales it, so resizing never redraws
 
     override func mouseDown(with event: NSEvent) {
-        if event.clickCount == 2 { onClose?() } else { super.mouseDown(with: event) }
+        if event.clickCount == 2 { window?.close() } else { super.mouseDown(with: event) }
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -110,17 +105,4 @@ private final class PinView: NSView {
     override func magnify(with event: NSEvent) {
         (window as? PinWindow)?.resize(by: 1 + event.magnification, around: NSEvent.mouseLocation)
     }
-
-    override func menu(for event: NSEvent) -> NSMenu? {
-        let menu = NSMenu()
-        menu.addItem(withTitle: "Copy", action: #selector(copyImage), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "Save", action: #selector(saveImage), keyEquivalent: "").target = self
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Close", action: #selector(closePin), keyEquivalent: "").target = self
-        return menu
-    }
-
-    @objc private func copyImage() { ImageExport.copy(image) }
-    @objc private func saveImage() { _ = try? ImageExport.save(image, to: AppSettings.shared.saveFolder) }
-    @objc private func closePin() { onClose?() }
 }

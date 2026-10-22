@@ -29,43 +29,15 @@ struct Annotation: Identifiable, Equatable {
     var color: Color
     var width: CGFloat = Theme.strokeWidth
 
-    var isStroke: Bool {
-        if case .stroke = shape { true } else { false }
-    }
-
-    var isArrow: Bool {
-        if case .arrow = shape { true } else { false }
-    }
-
-    var isText: Bool {
-        if case .text = shape { true } else { false }
-    }
-
-    var isMagnifier: Bool {
-        if case .magnifier = shape { true } else { false }
-    }
-
     var isImage: Bool {
         if case .image = shape { true } else { false }
-    }
-
-    var isStep: Bool {
-        if case .step = shape { true } else { false }
     }
 
     /// 1, 2, 3… for the steps in `annotations`, in the order they were added.
     static func stepNumbers(in annotations: [Annotation]) -> [Annotation.ID: Int] {
         var numbers: [Annotation.ID: Int] = [:]
-        for annotation in annotations where annotation.isStep { numbers[annotation.id] = numbers.count + 1 }
+        for annotation in annotations where annotation.tool == .step { numbers[annotation.id] = numbers.count + 1 }
         return numbers
-    }
-
-    /// Effects drawn below everything else (hiding and the spotlight dim), rather than in list order.
-    var isBackdropEffect: Bool {
-        switch shape {
-        case .redact, .spotlight: true
-        default: false
-        }
     }
 
     var textBox: TextBox? {
@@ -90,30 +62,23 @@ struct Annotation: Identifiable, Equatable {
     }
 
     /// Arrows are edited by their points, text by its pointer, the magnifier by its two lenses; everything else by a box with 8 handles.
-    var usesBoxHandles: Bool { !isArrow && !isText && !isMagnifier && !isStep }
+    var usesBoxHandles: Bool { ![.arrow, .text, .magnifier, .step].contains(tool) }
 
     /// The box that selection handles sit on.
     var bounds: CGRect {
+        func enclosing(_ points: [CGPoint]) -> CGRect { points.reduce(.null) { $0.union(CGRect(origin: $1, size: .zero)) } }
         switch shape {
         case .stroke(let points):
-            let xs = points.map(\.x), ys = points.map(\.y)
-            guard let minX = xs.min(), let maxX = xs.max(), let minY = ys.min(), let maxY = ys.max() else { return .zero }
-            return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
-        case .rectangle(let rect), .ellipse(let rect):
+            return enclosing(points)
+        case .rectangle(let rect), .ellipse(let rect), .redact(let rect, _, _), .spotlight(let rect, _), .image(let rect, _):
             return rect.standardized
         case .arrow(let start, let end, let bend, _):
-            let points = ArrowCurve(start: start, end: end, bend: bend).samples(16)
-            let xs = points.map(\.x), ys = points.map(\.y)
-            return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+            return enclosing(ArrowCurve(start: start, end: end, bend: bend).samples(16))
         case .text(_, _, let style, let pointer):
             let box = textBox!.box
             return style == .callout ? box.union(CGRect(origin: pointer, size: .zero)) : box
-        case .redact(let rect, _, _), .spotlight(let rect, _):
-            return rect.standardized
         case .magnifier(let source, let target, _):
             return source.standardized.union(target.standardized)
-        case .image(let rect, _):
-            return rect.standardized
         case .step(let center):
             return CGRect(x: center.x - width / 2, y: center.y - width / 2, width: width, height: width)
         }
@@ -154,12 +119,10 @@ struct Annotation: Identifiable, Equatable {
             let box = textBox!.box
             if box.insetBy(dx: -tolerance, dy: -tolerance).contains(point) { return true }
             return style == .callout && distance(point, toSegment: CGPoint(x: box.midX, y: box.midY), pointer) <= tolerance + width * 0.3
-        case .redact(let rect, _, _), .spotlight(let rect, _):
+        case .redact(let rect, _, _), .spotlight(let rect, _), .image(let rect, _):
             return rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) // areas: anywhere inside
         case .magnifier(let source, let target, _):
             return [source, target].contains { $0.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) }
-        case .image(let rect, _):
-            return rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point)
         case .step(let center):
             return hypot(point.x - center.x, point.y - center.y) <= width / 2 + tolerance
         }
@@ -230,7 +193,7 @@ extension CGContext {
     /// Order: blur/erase, then the spotlight dim, then everything else in list order (so arrows and text stay bright).
     /// `hidingTextOf`: the text being typed, whose letters the inline editor draws instead.
     /// `canvas`: the whole drawn area (the image plus anything past its edges), for the spotlight dim.
-    func drawAnnotations(_ annotations: [Annotation], on image: CGImage, canvas: CGRect? = nil, hidingTextOf hiddenText: Annotation.ID? = nil) {
+    func drawAnnotations(_ annotations: [Annotation], on image: CGImage, canvas: CGRect, hidingTextOf hiddenText: Annotation.ID? = nil) {
         for annotation in annotations {
             guard case .redact(let rect, let style, let textBoxes) = annotation.shape else { continue }
             saveGState()
@@ -240,12 +203,12 @@ extension CGContext {
             }
             restoreGState()
         }
-        drawSpotlights(annotations.filter { if case .spotlight = $0.shape { true } else { false } }, area: canvas ?? image.bounds)
+        drawSpotlights(annotations.filter { $0.tool == .spotlight }, area: canvas)
 
         setLineCap(.round)
         setLineJoin(.round)
         let stepNumbers = Annotation.stepNumbers(in: annotations)
-        for annotation in annotations where !annotation.isBackdropEffect {
+        for annotation in annotations where ![.blur, .spotlight].contains(annotation.tool) {
             let color = NSColor(annotation.color).cgColor
             setStrokeColor(color)
             setFillColor(color)
@@ -297,9 +260,7 @@ extension CGContext {
             }
         }
     }
-}
 
-extension CGContext {
     /// A filled circle with its number centered in black or white, whichever reads better on the color.
     func drawStep(_ number: Int, at center: CGPoint, diameter: CGFloat, color: Color) {
         fillEllipse(in: CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
@@ -339,25 +300,31 @@ extension CGImage {
 
     /// Flattens annotations onto a copy of the image. Anything drawn past the edges grows the result,
     /// and the new area is filled with the image's edge color.
-    /// `crop`: export only that area (image px) instead.
-    func rendering(_ annotations: [Annotation], crop: CGRect? = nil) -> CGImage {
-        guard !annotations.isEmpty || crop != nil else { return self }
-        let canvas = crop?.integral ?? canvasRect(for: annotations)
+    /// `crop`: export only that area (image px) instead. `backdrop`: the result as a card on it, padding included.
+    func rendering(_ annotations: [Annotation], crop: CGRect? = nil, backdrop: Backdrop? = nil) -> CGImage {
+        guard !annotations.isEmpty || crop != nil || backdrop != nil else { return self }
+        let content = crop?.integral ?? canvasRect(for: annotations)
+        let pad = backdrop?.paddingSize(for: content) ?? 0
+        let canvas = content.insetBy(dx: -pad, dy: -pad)
+        let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
         guard let context = CGContext(
             data: nil, width: Int(canvas.width), height: Int(canvas.height), bitsPerComponent: 8, bytesPerRow: 0,
-            space: colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+            space: backdrop == nil ? colorSpace ?? sRGB : sRGB, // the backdrop's gradient is sRGB
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return self }
 
         context.translateBy(x: 0, y: canvas.height)
         context.scaleBy(x: 1, y: -1) // top-left origin, like the canvas
         context.translateBy(x: -canvas.minX, y: -canvas.minY) // image pixel coordinates
-        if canvas != bounds {
-            context.setFillColor(edgeColor)
-            context.fill(canvas)
+        let drawContent = {
+            if content != self.bounds {
+                context.setFillColor(self.edgeColor)
+                context.fill(content)
+            }
+            context.drawUpright(self, in: self.bounds)
+            context.drawAnnotations(annotations, on: self, canvas: content)
         }
-        context.drawUpright(self, in: bounds)
-        context.drawAnnotations(annotations, on: self, canvas: canvas)
+        if let backdrop { context.drawBackdrop(backdrop, canvas: canvas, content: content, drawContent: drawContent) } else { drawContent() }
         return context.makeImage() ?? self
     }
 }

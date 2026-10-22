@@ -7,7 +7,7 @@ nonisolated enum TextRecognition {
     /// Boxes around each line of text inside `rect` (image px, top-left origin), padded a little. Fast mode.
     static func lineBoxes(in image: CGImage, rect: CGRect) -> [CGRect] {
         let area = rect.standardized.integral.intersection(image.bounds)
-        guard !area.isNull, area.width >= 4, area.height >= 4, let crop = image.cropping(to: area) else { return [] }
+        guard area.width >= 4, area.height >= 4, let crop = image.cropping(to: area) else { return [] }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .fast
         request.usesLanguageCorrection = false
@@ -40,9 +40,4 @@ nonisolated enum TextRecognition {
 
 nonisolated enum Readable: Equatable, Sendable {
     case code(String), text(String)
-}
-
-/// Lets a CGImage (immutable) cross into a background task.
-nonisolated struct SendableImage: @unchecked Sendable {
-    let image: CGImage
 }

@@ -7,9 +7,7 @@ cd "$(dirname "$0")/.."
 BIN_DIR=$(mktemp -d)
 trap 'rm -rf "$BIN_DIR"' EXIT
 
-SOURCES=()
-while IFS= read -r file; do SOURCES+=("$file"); done < <(find Shortty -name '*.swift' ! -name 'ShorttyApp.swift')
-
-swiftc -swift-version 5 -parse-as-library -suppress-warnings -target "$(uname -m)-apple-macos14.0" \
-  "${SOURCES[@]}" Scripts/SelfCheck/main.swift -o "$BIN_DIR/selfcheck"
-"$BIN_DIR/selfcheck" "$PWD" "${1:-}"
+find Shortty -name '*.swift' ! -name 'ShorttyApp.swift' -print0 |
+  xargs -0 swiftc -swift-version 5 -parse-as-library -suppress-warnings -target "$(uname -m)-apple-macos14.0" \
+  Scripts/SelfCheck/main.swift -o "$BIN_DIR/selfcheck"
+"$BIN_DIR/selfcheck" "$@"

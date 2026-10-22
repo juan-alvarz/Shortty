@@ -28,7 +28,7 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | Path | What lives there |
 |---|---|
 | `Shortty/App` | Entry point and menu bar menu, `AppDelegate`, `AppSettings` (UserDefaults-backed, `@Observable`) |
-| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`, `LastCapture` file for reopen), `RegionSelector` (area-picking overlay + countdown outline), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
+| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`, `LastCapture` file for reopen), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
 | `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (toolbar, color popover, floating tool options panel), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
@@ -57,7 +57,7 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
   `canvasRect.origin + point × pixelsPerPoint`. `NSScrollView.magnification` is the zoom. The canvas only resizes when
   no drag or typing is in progress (`CanvasView.isBusy`), so nothing jumps under the pointer.
 - **Undo.** Snapshots hold the annotations and the crop. Change `annotations` through `EditorModel` methods, or call `recordChange(from:)` after a change. Live
-  drags (sliders, mouse) apply with `undoable: false`, then record one step at the end.
+  drags (sliders, mouse) apply with `undoable: false`, then record one step at the end (sliders: `EditorModel.liveChange`).
 - **Text editing.** `EditorModel.editingID` drives it: `beginEditing` / `setText` / `endEditing` (removes empty text,
   records one undo step). The canvas shows a TextKit 1 `NSTextView` while it's set and hides those glyphs from the
   overlay. Key shortcuts must pass through while typing (`EditorWindowController.handle`).

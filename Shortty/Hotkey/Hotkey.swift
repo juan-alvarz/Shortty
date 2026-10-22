@@ -7,11 +7,6 @@ struct Hotkey: Equatable {
     var modifiers: NSEvent.ModifierFlags.RawValue
     var keyLabel: String
 
-    static let defaultRegion = Hotkey(
-        keyCode: UInt32(kVK_ANSI_9),
-        modifiers: NSEvent.ModifierFlags([.command, .shift]).rawValue,
-        keyLabel: "9"
-    )
     /// "No shortcut assigned".
     static let none = Hotkey(keyCode: .max, modifiers: 0, keyLabel: "")
     var isNone: Bool { keyCode == .max }
@@ -38,20 +33,6 @@ struct Hotkey: Equatable {
         return text + (Self.keyName(for: keyCode) ?? keyLabel)
     }
 
-    /// Builds a hotkey from a key-down event. Requires ⌘, ⌥ or ⌃ so plain typing can't become a global shortcut.
-    init?(event: NSEvent) {
-        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
-        guard !flags.intersection([.command, .option, .control]).isEmpty else { return nil }
-        guard let label = Hotkey.label(for: event) else { return nil }
-        self.init(keyCode: UInt32(event.keyCode), modifiers: flags.rawValue, keyLabel: label)
-    }
-
-    init(keyCode: UInt32, modifiers: NSEvent.ModifierFlags.RawValue, keyLabel: String) {
-        self.keyCode = keyCode
-        self.modifiers = modifiers
-        self.keyLabel = keyLabel
-    }
-
     private static let specialKeyLabels: [Int: String] = [
         kVK_Space: "Space", kVK_Return: "↩", kVK_Tab: "⇥", kVK_Delete: "⌫", kVK_ForwardDelete: "⌦",
         kVK_LeftArrow: "←", kVK_RightArrow: "→", kVK_UpArrow: "↑", kVK_DownArrow: "↓",
@@ -59,14 +40,6 @@ struct Hotkey: Equatable {
         kVK_F1: "F1", kVK_F2: "F2", kVK_F3: "F3", kVK_F4: "F4", kVK_F5: "F5", kVK_F6: "F6",
         kVK_F7: "F7", kVK_F8: "F8", kVK_F9: "F9", kVK_F10: "F10", kVK_F11: "F11", kVK_F12: "F12",
     ]
-
-    private static func label(for event: NSEvent) -> String? {
-        if let name = keyName(for: UInt32(event.keyCode)) { return name }
-        guard let first = event.charactersIgnoringModifiers?.uppercased().first,
-              first.isLetter || first.isNumber || first.isPunctuation || first.isSymbol
-        else { return nil }
-        return String(first)
-    }
 
     /// What's printed on the key in the current keyboard layout, without Shift ("0", not ")"),
     /// or a symbol for special keys. Computed from the key code, so it also fixes labels saved before.
@@ -85,6 +58,25 @@ struct Hotkey: Equatable {
         guard status == noErr, length > 0 else { return nil }
         let name = String(utf16CodeUnits: characters, count: length).uppercased()
         return name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name
+    }
+}
+
+// In an extension, so the struct keeps its synthesized memberwise init.
+extension Hotkey {
+    /// Builds a hotkey from a key-down event. Requires ⌘, ⌥ or ⌃ so plain typing can't become a global shortcut.
+    init?(event: NSEvent) {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        guard !flags.intersection([.command, .option, .control]).isEmpty else { return nil }
+        guard let label = Hotkey.label(for: event) else { return nil }
+        self.init(keyCode: UInt32(event.keyCode), modifiers: flags.rawValue, keyLabel: label)
+    }
+
+    private static func label(for event: NSEvent) -> String? {
+        if let name = keyName(for: UInt32(event.keyCode)) { return name }
+        guard let first = event.charactersIgnoringModifiers?.uppercased().first,
+              first.isLetter || first.isNumber || first.isPunctuation || first.isSymbol
+        else { return nil }
+        return String(first)
     }
 }
 

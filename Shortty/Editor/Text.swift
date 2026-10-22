@@ -3,15 +3,9 @@ import SwiftUI
 
 /// Text looks: a callout (filled box with a pointer), a label (filled box), or plain letters.
 enum TextStyle: String, CaseIterable {
-    case callout, label, plain
+    case callout = "Callout", label = "Label", plain = "Text"
 
-    var title: String {
-        switch self {
-        case .callout: "Callout"
-        case .label: "Label"
-        case .plain: "Text"
-        }
-    }
+    var title: String { rawValue }
 }
 
 /// Layout of a text annotation in image pixels. Drawing, hit testing and the inline editor all use this,
@@ -102,14 +96,10 @@ struct TextBox {
         let center = CGPoint(x: tip.x - u.x * radius, y: tip.y - u.y * radius)
         // Walk base(+n side) → rounded end → base(−n side).
         let (sideN, sideMinusN) = (baseA.x - base.x) * n.x + (baseA.y - base.y) * n.y >= 0 ? (baseA, baseB) : (baseB, baseA)
-        var points = [sideN]
-        for step in 0...12 {
-            let t = CGFloat(step) / 12 * .pi
-            points.append(CGPoint(x: center.x + radius * (cos(t) * n.x + sin(t) * u.x), y: center.y + radius * (cos(t) * n.y + sin(t) * u.y)))
-        }
-        points.append(sideMinusN)
         let path = CGMutablePath()
-        path.addLines(between: points)
+        path.move(to: sideN)
+        path.addRelativeArc(center: center, radius: radius, startAngle: atan2(n.y, n.x), delta: -.pi) // from +n through the tip (u)
+        path.addLine(to: sideMinusN)
         path.closeSubpath()
         return path
     }

@@ -25,72 +25,56 @@ final class CaptureController {
     func cancel() { task?.cancel() }
 
     private func run(_ action: CaptureAction) async {
-        switch action {
-        case .scrolling:
-            if let image = await ScrollCapture.run() { EditorWindowController.shared.show(image) }
-            return
-        case .captureText:
-            await TextCapture.run()
-            return
-        default:
-            break
-        }
-
-        // Lazy region: pick the area first, then wait, then capture exactly that area.
-        var region: CGRect?
-        if action == .lazyRegion {
-            guard let selected = await RegionSelector.select() else { return }
-            region = selected
-            Self.lastRegion = selected
-        }
-
-        if action.isLazy {
-            let overlay = region.map(CountdownOverlay.init(region:))
-            defer { overlay?.close() }
-            for remaining in stride(from: AppSettings.shared.lazyDelay, to: 0, by: -1) {
-                countdown = remaining
-                overlay?.show(remaining)
-                try? await Task.sleep(for: .seconds(1))
-                if Task.isCancelled { return }
-            }
-            countdown = nil
-            overlay?.close()
-            try? await Task.sleep(for: .milliseconds(150)) // let the overlay and menu bar digits leave the screen
-            if Task.isCancelled { return }
-        }
-
         let image: CGImage?
         switch action {
-        case .lazyRegion:
-            guard let region else { return }
-            image = await ScreenCapture.captureRect(region)
         case .region:
             image = await captureChosenArea()
-        case .repeatRegion:
-            if let last = Self.lastRegion {
-                image = await ScreenCapture.captureRect(last)
-            } else {
-                image = await captureChosenArea() // nothing to repeat yet
-            }
-        case .screen, .lazyScreen:
+        case .repeatRegion: // nothing to repeat yet: pick an area
+            image = if let last = Self.lastRegion { await ScreenCapture.captureRect(last) } else { await captureChosenArea() }
+        case .screen:
             image = await ScreenCapture.captureScreen()
+        case .lazyScreen:
+            guard await countDown() else { return }
+            image = await ScreenCapture.captureScreen()
+        case .lazyRegion: // pick the area first, then wait, then capture exactly that area
+            guard let region = await RegionSelector.select() else { return }
+            Self.lastRegion = region
+            guard await countDown(outlining: region) else { return }
+            image = await ScreenCapture.captureRect(region)
         case .window:
             image = await ScreenCapture.captureWindow()
         case .activeWindow:
             image = await ScreenCapture.captureActiveWindow()
-        case .reopen, .scrolling, .captureText:
-            return
+        case .scrolling:
+            image = await ScrollCaptureSession.capture()
+        case .captureText:
+            return await TextCapture.run()
+        case .reopen:
+            return // handled in perform
         }
         if let image { EditorWindowController.shared.show(image) }
     }
 
+    /// Counts down the lazy delay next to the menu bar icon (and around `region`). False when cancelled.
+    private func countDown(outlining region: CGRect? = nil) async -> Bool {
+        let overlay = region.map(CountdownOverlay.init(region:))
+        defer { overlay?.close() }
+        for remaining in stride(from: AppSettings.shared.lazyDelay, to: 0, by: -1) {
+            countdown = remaining
+            overlay?.show(remaining)
+            do { try await Task.sleep(for: .seconds(1)) } catch { return false }
+        }
+        countdown = nil
+        overlay?.close()
+        do { try await Task.sleep(for: .milliseconds(150)) } catch { return false } // let the overlay and digits leave the screen
+        return true
+    }
+
     /// Capture Region uses Shortty's own selector (so Repeat Last Region knows the area); Space switches to a window.
     private func captureChosenArea() async -> CGImage? {
-        guard ScreenCapture.hasPermission() else { return nil }
         switch await RegionSelector.choose(hint: "Drag over an area   ·   Space for a window   ·   Esc to cancel", allowsWindow: true) {
         case .area(let rect)?:
             Self.lastRegion = rect
-            try? await Task.sleep(for: .milliseconds(80)) // let the selection overlay leave the screen first
             return await ScreenCapture.captureRect(rect)
         case .window?:
             return await ScreenCapture.captureWindow()

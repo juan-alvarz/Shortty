@@ -60,16 +60,6 @@ final class EditorModel {
     /// The slider value per tool: thickness in image px; font size for text; block size for blur; dim % for spotlight.
     private(set) var toolWidths: [Tool: CGFloat] = [.pencil: 4, .arrow: 6, .text: 28, .rectangle: 4, .ellipse: 4,
                                                     .magnifier: 4, .blur: 12, .spotlight: 60, .step: 36]
-
-    static func widthRange(for tool: Tool) -> ClosedRange<CGFloat> {
-        switch tool {
-        case .text: 12...120
-        case .blur: 4...40
-        case .spotlight: 20...90
-        case .step: 16...96
-        default: 2...24
-        }
-    }
     /// nil = fit to window. Otherwise points per natural point (1 = one image pixel per screen pixel).
     var zoom: CGFloat?
     /// What the canvas actually shows right now (fit or explicit); the toolbar reads this.
@@ -84,6 +74,9 @@ final class EditorModel {
     }
     @ObservationIgnored private var undoStack: [Snapshot] = []
     @ObservationIgnored private var redoStack: [Snapshot] = []
+    /// Annotations from before a live slider drag; set while one is in progress.
+    @ObservationIgnored private var annotationsBeforeLiveChange: [Annotation]?
+    var isLiveChanging: Bool { annotationsBeforeLiveChange != nil }
 
     init(image: CGImage) { self.image = image }
 
@@ -102,7 +95,6 @@ final class EditorModel {
         zoom = nil
     }
 
-    /// The image plus anything drawn past its edges, in image pixels.
     /// The crop when there is one, else the image plus anything drawn past its edges.
     var contentRect: CGRect { crop ?? image.canvasRect(for: annotations) }
     /// Everything shown and exported: the content, plus the backdrop's padding when it's on.
@@ -126,10 +118,17 @@ final class EditorModel {
     }
     var showsArrowStyles: Bool { optionsTool == .arrow }
     var showsTextStyles: Bool { optionsTool == .text }
-    /// Erase has nothing to adjust.
     /// Crop and Recognize Text have buttons instead; erase has nothing to adjust.
     var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && (optionsTool != .blur || redactStyle.usesStrength) }
-    var currentWidthRange: ClosedRange<CGFloat> { Self.widthRange(for: optionsTool) }
+    var currentWidthRange: ClosedRange<CGFloat> {
+        switch optionsTool {
+        case .text: 12...120
+        case .blur: 4...40
+        case .spotlight: 20...90
+        case .step: 16...96
+        default: 2...24
+        }
+    }
 
     /// What the thickness slider shows: the selection's width, else the current tool's.
     var currentWidth: CGFloat { selectedAnnotation?.width ?? width(for: tool) }
@@ -237,24 +236,28 @@ final class EditorModel {
     /// `undoable: false` for live slider drags, like `setColor`.
     func setWidth(_ width: CGFloat, undoable: Bool = true) {
         if let kind = selectedAnnotation.map(\.tool) ?? (tool == .select ? nil : tool) { toolWidths[kind] = width }
-        guard let i = selectedIndex else { return }
-        if undoable {
-            edit { $0[i].width = width }
-        } else {
-            annotations[i].width = width
-        }
+        updateSelection(undoable: undoable) { $0.width = width }
+    }
+
+    /// `undoable: false` for live slider drags; `liveChange(false)` records one step at the end.
+    func setColor(_ newColor: Color, undoable: Bool = true) {
+        color = newColor
+        updateSelection(undoable: undoable) { $0.color = newColor }
     }
 
     // Index looked up before `edit` starts: reading `annotations` inside its inout access would be an exclusivity violation.
-
-    /// `undoable: false` for live slider drags; the caller records one step with `recordChange(from:)` at the end.
-    func setColor(_ newColor: Color, undoable: Bool = true) {
-        color = newColor
+    private func updateSelection(undoable: Bool, _ change: (inout Annotation) -> Void) {
         guard let i = selectedIndex else { return }
-        if undoable {
-            edit { $0[i].color = newColor }
-        } else {
-            annotations[i].color = newColor
+        if undoable { edit { change(&$0[i]) } } else { change(&annotations[i]) }
+    }
+
+    /// Slider drags: `true` when one starts, `false` when it ends, which records the whole drag as one undo step.
+    func liveChange(_ began: Bool) {
+        if began {
+            annotationsBeforeLiveChange = annotations
+        } else if let before = annotationsBeforeLiveChange {
+            recordChange(from: before)
+            annotationsBeforeLiveChange = nil
         }
     }
 
@@ -277,19 +280,13 @@ final class EditorModel {
         redoStack.removeAll()
     }
 
-    func undo() {
-        guard let previous = undoStack.popLast() else { return }
-        redoStack.append(Snapshot(annotations: annotations, crop: crop))
-        restore(previous)
-    }
+    func undo() { step(from: &undoStack, to: &redoStack) }
+    func redo() { step(from: &redoStack, to: &undoStack) }
 
-    func redo() {
-        guard let next = redoStack.popLast() else { return }
-        undoStack.append(Snapshot(annotations: annotations, crop: crop))
-        restore(next)
-    }
-
-    private func restore(_ snapshot: Snapshot) {
+    /// Restores the last snapshot of `source`, saving the current state onto `target`.
+    private func step(from source: inout [Snapshot], to target: inout [Snapshot]) {
+        guard let snapshot = source.popLast() else { return }
+        target.append(Snapshot(annotations: annotations, crop: crop))
         annotations = snapshot.annotations
         crop = snapshot.crop
         if selectedIndex == nil { selection = nil }
@@ -323,17 +320,13 @@ final class EditorModel {
     // MARK: Zoom
 
     static let zoomRange: ClosedRange<CGFloat> = 0.1...8
-    static func clampZoom(_ zoom: CGFloat) -> CGFloat { zoom.clamped(to: zoomRange) }
-    func zoomIn() { zoom = Self.clampZoom(displayedZoom * 1.25) }
-    func zoomOut() { zoom = Self.clampZoom(displayedZoom / 1.25) }
+    func zoomIn() { zoom = (displayedZoom * 1.25).clamped(to: Self.zoomRange) }
+    func zoomOut() { zoom = (displayedZoom / 1.25).clamped(to: Self.zoomRange) }
     func zoomToFit() { zoom = nil }
 
     // MARK: Output
 
-    var rendered: CGImage {
-        let content = image.rendering(annotations, crop: crop)
-        return backdrop.map(content.addingBackdrop) ?? content
-    }
+    var rendered: CGImage { image.rendering(annotations, crop: crop, backdrop: backdrop) }
 
     // MARK: Inserting pictures
 
@@ -347,9 +340,7 @@ final class EditorModel {
         let annotation = Annotation(shape: .image(rect: CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
                                                                width: size.width, height: size.height), image: picture),
                                     color: color, width: 0)
-        let before = annotations
-        annotations.append(annotation)
-        recordChange(from: before)
+        edit { $0.append(annotation) }
         tool = .select
         select(annotation.id)
     }

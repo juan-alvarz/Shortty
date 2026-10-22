@@ -36,6 +36,19 @@ struct SelfCheck {
         context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
         return data
     }
+    static func same(_ a: [UInt8], _ b: [UInt8], _ tolerance: Int = 6) -> Bool { zip(a.prefix(3), b.prefix(3)).allSatisfy { abs(Int($0) - Int($1)) <= tolerance } }
+    static func same(_ a: [UInt8], _ color: Color, _ tolerance: Int = 6) -> Bool { same(a, color.rgb.map { UInt8($0) }, tolerance) }
+    /// An sRGB bitmap, filled with `fill` when given.
+    static func bitmap(_ width: Int, _ height: Int, _ fill: CGColor? = nil) -> CGContext {
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        if let fill { context.setFillColor(fill); context.fill(CGRect(x: 0, y: 0, width: width, height: height)) }
+        return context
+    }
+    static func key(_ characters: String, _ code: Int, in window: NSWindow) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: window.windowNumber, context: nil,
+                         characters: characters, charactersIgnoringModifiers: characters, isARepeat: false, keyCode: UInt16(code))!
+    }
 
     /// A fake dark "screenshot": panel with text-like bars.
     static func fixture() -> CGImage {
@@ -58,8 +71,7 @@ struct SelfCheck {
 
     static func main() {
         NSApplication.shared.setActivationPolicy(.accessory)
-        let repo = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : FileManager.default.currentDirectoryPath
-        snapshotDir = CommandLine.arguments.count > 2 && !CommandLine.arguments[2].isEmpty ? CommandLine.arguments[2] : nil
+        snapshotDir = CommandLine.arguments.dropFirst().first
         let image = fixture()
 
         check(ScreenCapture.rectArgument(CGRect(x: 100, y: 200, width: 300, height: 400), primaryHeight: 1000) == "100,400,300,400", "rect argument flips y")
@@ -134,7 +146,7 @@ struct SelfCheck {
         model.tool = .pencil
         let origin = window.frame.origin
         drag(CGPoint(x: 100, y: 450), CGPoint(x: 250, y: 520))
-        check(model.annotations.count == 1 && model.annotations[0].isStroke && model.selection == nil, "pencil draws a stroke, not selected")
+        check(model.annotations.count == 1 && model.annotations[0].tool == .pencil && model.selection == nil, "pencil draws a stroke, not selected")
         check(window.frame.origin == origin, "drawing does not move the window")
 
         model.tool = .rectangle
@@ -266,9 +278,8 @@ struct SelfCheck {
         let solidArrow = model.annotations[model.annotations.count - 3]
         if case .arrow(let a, let b, _, let solidStyle) = solidArrow.shape {
             let mid = CGPoint(x: (a.x + b.x) / 2 + (b.x - a.x) * 0.2, y: (a.y + b.y) / 2 + (b.y - a.y) * 0.2)
-            let exported = pixel(model.rendered, Int(mid.x), Int(mid.y)).prefix(3).map(Double.init)
-            let expected = solidArrow.color.rgb
-            check(solidStyle == .solid && zip(exported, expected).allSatisfy { abs($0 - $1) < 8 }, "export draws the solid arrow body in its color (\(exported) vs \(expected))")
+            let exported = pixel(model.rendered, Int(mid.x), Int(mid.y))
+            check(solidStyle == .solid && same(exported, solidArrow.color, 7), "export draws the solid arrow body in its color (\(exported.prefix(3)) vs \(solidArrow.color.rgb))")
         }
 
         // Options bar receives clicks (it floats above the canvas)
@@ -369,16 +380,12 @@ struct SelfCheck {
         if case .text(_, _, _, let moved) = text().shape { check(near(moved.x, pointer.x - 60) && near(moved.y, pointer.y + 50), "dragging the pointer grip re-aims the callout") }
 
         // Pointer base: at least 1.2× the font size, wider for long pointers, never past the box edge.
-        func pointerBase(_ distance: CGFloat) -> CGFloat {
-            let probe = TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: .zero, fontSize: 28, color: Theme.accent)
-            let tip = CGPoint(x: probe.box.midX, y: probe.box.maxY + distance)
-            return TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: tip, fontSize: 28, color: Theme.accent)
-                .pointerPath!.boundingBox.width
-        }
+        func callout(_ tip: CGPoint) -> TextBox { TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: tip, fontSize: 28, color: Theme.accent) }
+        let probe = callout(.zero).box
+        func pointerBase(_ distance: CGFloat) -> CGFloat { callout(CGPoint(x: probe.midX, y: probe.maxY + distance)).pointerPath!.boundingBox.width }
         // Rounded end, not a needle: 2.8 px before the tip the pointer is still about as wide as its rounded end.
-        let probe = TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: .zero, fontSize: 28, color: Theme.accent)
-        let farTip = CGPoint(x: probe.box.midX, y: probe.box.maxY + 300)
-        let farPointer = TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: farTip, fontSize: 28, color: Theme.accent).pointerPath!
+        let farTip = CGPoint(x: probe.midX, y: probe.maxY + 300)
+        let farPointer = callout(farTip).pointerPath!
         check(farPointer.contains(CGPoint(x: farTip.x + 2, y: farTip.y - 2.8)) && !farPointer.contains(CGPoint(x: farTip.x, y: farTip.y + 1)),
               "callout pointer ends in a rounded tip that touches the target")
         check(near(pointerBase(40), 33.6, 1) && pointerBase(300) > 50 && near(pointerBase(900), 67.2, 1),
@@ -390,8 +397,7 @@ struct SelfCheck {
 
         let calloutBox = text().textBox!.box
         let paddingPoint = (Int(calloutBox.midX), Int(calloutBox.maxY - 3))
-        let calloutPixel = pixel(model.rendered, paddingPoint.0, paddingPoint.1).prefix(3).map(Double.init)
-        check(zip(calloutPixel, text().color.rgb).allSatisfy { abs($0 - $1) < 8 }, "callout box is filled in its color")
+        check(same(pixel(model.rendered, paddingPoint.0, paddingPoint.1), text().color, 7), "callout box is filled in its color")
         model.setTextStyle(.plain)
         let withoutText = image.rendering(model.annotations.filter { $0.id != textID })
         check(Array(pixel(model.rendered, paddingPoint.0, paddingPoint.1)) == Array(pixel(withoutText, paddingPoint.0, paddingPoint.1)), "plain text has no background")
@@ -404,9 +410,7 @@ struct SelfCheck {
 
         model.tool = .select
         let selectBox = text().textBox!.box
-        canvas.mouseDown(with: mouse(.leftMouseDown, CGPoint(x: selectBox.midX, y: selectBox.midY), clicks: 2))
-        canvas.mouseUp(with: mouse(.leftMouseUp, CGPoint(x: selectBox.midX, y: selectBox.midY), clicks: 2))
-        spin(0.2)
+        click(CGPoint(x: selectBox.midX, y: selectBox.midY), clicks: 2)
         check(model.editingID == textID, "double-click edits text with the select tool")
         model.endEditing()
 
@@ -419,8 +423,7 @@ struct SelfCheck {
         snapshot(window.contentView!, "editor-text.png")
 
         // MARK: Recognize Text (Live Text)
-        let board = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck"))
-        board.clearContents()
+        let board = NSPasteboard.withUniqueName() // private: never the real clipboard
         model.textPasteboard = board
         model.select(nil)
         let countBeforeOCR = model.annotations.count
@@ -442,7 +445,6 @@ struct SelfCheck {
 
         // MARK: Blur / Erase
         func only(_ annotation: Annotation) -> CGImage { image.rendering([annotation]) }
-        func same(_ a: [UInt8], _ b: [UInt8], _ tolerance: Int = 6) -> Bool { zip(a.prefix(3), b.prefix(3)).allSatisfy { abs(Int($0) - Int($1)) <= tolerance } }
         model.tool = .blur
         check(model.showsWidthSlider && model.currentWidth == 12 && model.currentWidthRange == 4...40, "blur: strength 12 (4–40)")
         drag(CGPoint(x: 120, y: 120), CGPoint(x: 360, y: 240))
@@ -461,10 +463,9 @@ struct SelfCheck {
             check(false, "Blur Text finds the text")
             finish()
         }
-        check(true, "Blur Text finds the text (\(boxes.count) box)")
         let textBlurred = only(blurText)
         check(pixel(textBlurred, Int(firstBox.midX), Int(firstBox.midY)) != pixel(image, Int(firstBox.midX), Int(firstBox.midY))
-              && pixel(textBlurred, 610, 565) == pixel(image, 610, 565), "Blur Text hides only the text")
+              && pixel(textBlurred, 610, 565) == pixel(image, 610, 565), "Blur Text finds the text (\(boxes.count) box) and hides only it")
 
         model.setRedactStyle(.eraseText)
         check(!model.showsWidthSlider, "erase has no strength slider")
@@ -496,7 +497,7 @@ struct SelfCheck {
         check(pixel(lit, 700, 350) == pixel(image, 700, 350) && Double(outsideAfter[0]) < Double(outsideBefore[0]) * 0.5 + 2,
               "spotlight keeps its area, dims the rest (\(outsideBefore[0]) → \(outsideAfter[0]))")
         check(pixel(lit, 780, 400) == pixel(image, 780, 400), "overlapping spotlights share one dim layer")
-        check(same(pixel(lit, 650, 360), spot1.color.rgb.map { UInt8($0) }, 8), "spotlight is outlined in its color")
+        check(same(pixel(lit, 650, 360), spot1.color, 8), "spotlight is outlined in its color")
         model.setAreaShape(.ellipse)
         let litEllipse = image.rendering([spot1, model.annotations.last!])
         check(pixel(litEllipse, 864, 470) != pixel(image, 864, 470) && pixel(litEllipse, 820, 430) == pixel(image, 820, 430), "ellipse spotlight lights only the ellipse")
@@ -511,15 +512,11 @@ struct SelfCheck {
         let magnified = only(model.annotations.last!)
         check(same(pixel(magnified, Int(target.midX), Int(target.midY)), pixel(image, Int(source.midX), Int(source.midY)), 12), "the copy shows the area enlarged")
         drag(CGPoint(x: target.midX, y: target.midY), CGPoint(x: target.midX + 30, y: target.midY + 20))
-        if case .magnifier(let s, let t, _) = model.annotations.last!.shape {
-            check(s == source && near(t.minX, target.minX + 30) && near(t.minY, target.minY + 20), "dragging the copy moves only the copy")
-        }
         guard case .magnifier(let s1, let t1, _) = model.annotations.last!.shape else { finish() }
+        check(s1 == source && near(t1.minX, target.minX + 30) && near(t1.minY, target.minY + 20), "dragging the copy moves only the copy")
         drag(CGPoint(x: t1.maxX, y: t1.maxY), CGPoint(x: t1.maxX + 40, y: t1.maxY + 40))
-        if case .magnifier(let s2, let t2, _) = model.annotations.last!.shape {
-            check(s2 == s1 && t2.width / s2.width > 2.3 && near(t2.width / t2.height, s1.width / s1.height, 0.02), "resizing the copy zooms in, same proportions")
-        }
         guard case .magnifier(let s3, let t3, _) = model.annotations.last!.shape else { finish() }
+        check(s3 == s1 && t3.width / s3.width > 2.3 && near(t3.width / t3.height, s1.width / s1.height, 0.02), "resizing the copy zooms in, same proportions")
         drag(CGPoint(x: s3.maxX, y: s3.maxY), CGPoint(x: s3.maxX + 10, y: s3.maxY + 4))
         if case .magnifier(let s4, let t4, _) = model.annotations.last!.shape {
             check(near(t4.width / s4.width, t3.width / s3.width, 0.02) && near(t4.midX, t3.midX), "resizing the area keeps the zoom")
@@ -567,25 +564,21 @@ struct SelfCheck {
         let carded = model.rendered
         let p = Int(pad), cw = flattened.width, ch = flattened.height
         check(carded.width == cw + 2 * p && carded.height == ch + 2 * p, "export includes the backdrop")
-        check(same(pixel(carded, 1, 1), Backdrop.presets[0].colors[0].rgb.map { UInt8($0) }, 14), "the backdrop starts with the gradient's first color")
+        check(same(pixel(carded, 1, 1), Backdrop.presets[0].colors[0], 14), "the backdrop starts with the gradient's first color")
         check(pixel(carded, p + 1, p + 1) != pixel(flattened, 1, 1) && pixel(carded, p + cw / 2, p + ch / 2) == pixel(flattened, cw / 2, ch / 2),
               "the screenshot sits unchanged on a card with rounded corners")
         var noShadow = Backdrop()
         noShadow.shadow = 0
-        let flat = flattened.addingBackdrop(noShadow)
+        let flat = image.rendering(model.annotations, backdrop: noShadow)
         check(pixel(carded, p + cw / 2, p + ch + 6)[0] < pixel(flat, p + cw / 2, p + ch + 6)[0], "a shadow sits under the card")
-        if let snapshotDir { try? NSBitmapImageRep(cgImage: carded).representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(snapshotDir)/backdrop-export.png")) }
+        if let snapshotDir { try? ImageExport.writePNG(carded, to: URL(fileURLWithPath: "\(snapshotDir)/backdrop-export.png")) }
         model.backdrop = nil
         spin(0.3)
         check(model.canvasRect == contentBefore, "choosing None removes it")
 
         // MARK: Inserting pictures
         func solid(_ width: Int, _ height: Int, _ red: CGFloat, _ green: CGFloat, _ blue: CGFloat) -> CGImage {
-            let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-            context.setFillColor(CGColor(srgbRed: red, green: green, blue: blue, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-            return context.makeImage()!
+            bitmap(width, height, CGColor(srgbRed: red, green: green, blue: blue, alpha: 1)).makeImage()!
         }
         let tile = solid(120, 60, 1, 0, 0)
         model.tool = .pencil
@@ -606,20 +599,17 @@ struct SelfCheck {
         model.insertImage(solid(3000, 1000, 0, 0, 1))
         check(near(bounds(model.annotations.count - 1).width, 600) && near(bounds(model.annotations.count - 1).height, 200), "a big picture is scaled to fit")
 
-        let tileFile = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-tile.png")
-        try! NSBitmapImageRep(cgImage: tile).representation(using: .png, properties: [:])!.write(to: tileFile)
-        let pictureBoard = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck.pictures"))
-        pictureBoard.clearContents()
-        pictureBoard.writeObjects([tileFile as NSURL])
+        let tileFile = try! ImageExport.temporaryFile(tile) // a temp folder, replaced by the next drag file
+        board.clearContents()
+        board.writeObjects([tileFile as NSURL])
         let countBeforePaste = model.annotations.count
-        check(model.insertImages(from: pictureBoard) == 1 && model.annotations.count == countBeforePaste + 1, "a copied image file is inserted")
-        pictureBoard.clearContents()
-        pictureBoard.writeObjects([NSImage(cgImage: tile, size: .zero)])
-        check(model.insertImages(from: pictureBoard) == 1, "copied image data is inserted")
-        pictureBoard.clearContents()
-        pictureBoard.setString("just text", forType: .string)
-        check(model.insertImages(from: pictureBoard) == 0, "text on the clipboard inserts nothing")
-        try? FileManager.default.removeItem(at: tileFile)
+        check(model.insertImages(from: board) == 1 && model.annotations.count == countBeforePaste + 1, "a copied image file is inserted")
+        board.clearContents()
+        board.writeObjects([NSImage(cgImage: tile, size: .zero)])
+        check(model.insertImages(from: board) == 1, "copied image data is inserted")
+        board.clearContents()
+        board.setString("just text", forType: .string)
+        check(model.insertImages(from: board) == 0, "text on the clipboard inserts nothing")
         model.undo(); model.undo(); model.undo(); model.undo(); model.undo(); model.undo()
         check(model.annotations.count == countBeforeInsert, "undo takes the pictures back out")
 
@@ -634,7 +624,7 @@ struct SelfCheck {
         check(model.annotations.count == stepsBefore + 3 && steps.map { numbers[$0.id] } == [1, 2, 3] && model.selection == steps.last?.id,
               "three clicks place steps 1, 2, 3")
         let firstStep = steps.first!
-        check(same(pixel(image.rendering([firstStep]), 150 + 12, 620), firstStep.color.rgb.map { UInt8($0) }, 10), "a step is a filled badge in its color")
+        check(same(pixel(image.rendering([firstStep]), 150 + 12, 620), firstStep.color, 10), "a step is a filled badge in its color")
         model.select(steps[steps.startIndex + 1].id)
         model.deleteSelection()
         numbers = Annotation.stepNumbers(in: model.annotations)
@@ -646,6 +636,10 @@ struct SelfCheck {
         check(near(model.annotations.last!.bounds.width, 60), "the size slider resizes the selected step")
         click(CGPoint(x: 350, y: 620))
         check(model.annotations.count == stepsBefore + 3, "clicking an existing step selects it instead of adding one")
+        drag(CGPoint(x: 450, y: 620), CGPoint(x: 520, y: 560))
+        let dragged = model.annotations.last!.bounds
+        check(model.annotations.count == stepsBefore + 4 && near(dragged.midX, 520) && near(dragged.midY, 560), "a new step follows the pointer while the button is held")
+        model.undo()
         spin(0.3)
         snapshot(window.contentView!, "editor-steps.png")
 
@@ -687,18 +681,13 @@ struct SelfCheck {
         let widthBefore = pinned.frame.width
         pinned.resize(by: 0.5, around: CGPoint(x: pinned.frame.midX, y: pinned.frame.midY))
         check(near(pinned.frame.width, widthBefore * 0.5, 1) && near(pinned.frame.width / pinned.frame.height, CGFloat(image.width) / CGFloat(image.height), 0.01), "scrolling resizes it, same proportions")
-        let pinEsc = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: pinned.windowNumber, context: nil,
-                                      characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: UInt16(kVK_Escape))!
-        pinned.keyDown(with: pinEsc)
+        pinned.keyDown(with: key("\u{1b}", kVK_Escape, in: pinned))
         spin(0.2)
         check(!pinned.isVisible, "Esc closes the pin")
 
         // MARK: Scrolling capture stitcher (synthetic page with a sticky header and footer)
         func page(width: Int, height: Int) -> CGImage {
-            let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-            context.setFillColor(CGColor(gray: 1, alpha: 1))
-            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            let context = bitmap(width, height, CGColor(gray: 1, alpha: 1))
             var seed: UInt64 = 42
             func next(_ range: Int) -> Int { seed = seed &* 6364136223846793005 &+ 1442695040888963407; return Int(seed >> 33) % range }
             for _ in 0..<320 {
@@ -710,9 +699,8 @@ struct SelfCheck {
         let tallPage = page(width: 600, height: 2400)
         let header = 50, footer = 30, band = 320
         func frame(at offset: Int) -> CGImage {
-            let context = CGContext(data: nil, width: 600, height: header + band + footer, bitsPerComponent: 8, bytesPerRow: 0,
-                                    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
             let total = header + band + footer
+            let context = bitmap(600, total)
             context.draw(tallPage.cropping(to: CGRect(x: 0, y: offset, width: 600, height: band))!, in: CGRect(x: 0, y: footer, width: 600, height: band))
             context.setFillColor(CGColor(srgbRed: 0.1, green: 0.2, blue: 0.6, alpha: 1)) // sticky header (top)
             context.fill(CGRect(x: 0, y: total - header, width: 600, height: header))
@@ -775,18 +763,14 @@ struct SelfCheck {
         let qrFilter = CIFilter(name: "CIQRCodeGenerator")!
         qrFilter.setValue("https://shortty.app/hello".data(using: .utf8), forKey: "inputMessage")
         let qrModules = qrFilter.outputImage!.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-        let qrCanvas = CGContext(data: nil, width: Int(qrModules.extent.width) + 80, height: Int(qrModules.extent.height) + 80, bitsPerComponent: 8, bytesPerRow: 0,
-                                 space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-        qrCanvas.setFillColor(CGColor(gray: 1, alpha: 1))
-        qrCanvas.fill(CGRect(x: 0, y: 0, width: qrCanvas.width, height: qrCanvas.height))
+        let qrCanvas = bitmap(Int(qrModules.extent.width) + 80, Int(qrModules.extent.height) + 80, CGColor(gray: 1, alpha: 1))
         qrCanvas.draw(CIContext().createCGImage(qrModules, from: qrModules.extent)!, in: qrModules.extent.offsetBy(dx: 40, dy: 40))
         check(TextRecognition.readable(in: qrCanvas.makeImage()!) == .code("https://shortty.app/hello"), "Capture Text reads a QR code's link")
-        let textBoard = NSPasteboard(name: NSPasteboard.Name("com.shortty.Shortty.selfcheck.capturetext"))
-        check(TextCapture.copy(.code("https://shortty.app/hello"), to: textBoard) == "Copied QR code: https://shortty.app/hello"
-              && textBoard.string(forType: .string) == "https://shortty.app/hello", "a QR code's contents go to the clipboard")
-        check(TextCapture.copy(.text("one\ntwo"), to: textBoard) == "Copied 2 lines of text" && textBoard.string(forType: .string) == "one\ntwo",
+        check(TextCapture.copy(.code("https://shortty.app/hello"), to: board) == "Copied QR code: https://shortty.app/hello"
+              && board.string(forType: .string) == "https://shortty.app/hello", "a QR code's contents go to the clipboard")
+        check(TextCapture.copy(.text("one\ntwo"), to: board) == "Copied 2 lines of text" && board.string(forType: .string) == "one\ntwo",
               "text goes to the clipboard, the notice counts lines")
-        check(TextCapture.copy(nil, to: textBoard) == "No text found", "nothing found says so")
+        check(TextCapture.copy(nil, to: board) == "No text found", "nothing found says so")
         let notice = FloatingToast.show("Copied 2 lines of text", near: CGRect(x: 300, y: 300, width: 200, height: 100), for: 0.5)
         spin(0.2)
         check(notice.isVisible && notice.ignoresMouseEvents, "the floating notice appears and lets clicks through")
@@ -816,8 +800,7 @@ struct SelfCheck {
         check(editor.window === editorWindow && editor.model.annotations.isEmpty && editor.model.image !== image, "a new capture reuses the window and starts clean")
 
         // Keys while typing go to the text, not to tool shortcuts
-        let vKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: editorWindow.windowNumber, context: nil,
-                                    characters: "v", charactersIgnoringModifiers: "v", isARepeat: false, keyCode: UInt16(kVK_ANSI_V))!
+        let vKey = key("v", kVK_ANSI_V, in: editorWindow)
         editor.model.tool = .text
         let typing = Annotation(shape: .text(origin: CGPoint(x: 50, y: 50), string: "x", style: .plain, pointer: .zero), color: Theme.accent, width: 28)
         editor.model.annotations.append(typing)
@@ -825,13 +808,10 @@ struct SelfCheck {
         check(!editor.handle(vKey) && editor.model.tool == .text, "while typing, V types instead of switching tool")
         editor.model.endEditing()
         check(editor.handle(vKey) && editor.model.tool == .select, "after typing, V switches to Select")
-        let mKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: editorWindow.windowNumber, context: nil,
-                                    characters: "m", charactersIgnoringModifiers: "m", isARepeat: false, keyCode: UInt16(kVK_ANSI_M))!
-        check(editor.handle(mKey) && editor.model.tool == .magnifier, "M picks the magnifier")
+        check(editor.handle(key("m", kVK_ANSI_M, in: editorWindow)) && editor.model.tool == .magnifier, "M picks the magnifier")
 
         // Esc clears the selection but never closes the editor
-        let escKey = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: editorWindow.windowNumber, context: nil,
-                                      characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: UInt16(kVK_Escape))!
+        let escKey = key("\u{1b}", kVK_Escape, in: editorWindow)
         editor.model.select(typing.id)
         check(editor.model.tool == .magnifier && editor.handle(escKey) && editor.model.tool == .select && editor.model.selection == typing.id,
               "Esc with a tool active switches to Select, keeps the selection")
@@ -847,12 +827,9 @@ struct SelfCheck {
         editor.close()
 
         // MARK: Settings + icon
-        check(AppSettings.shared.lazyDelay >= 1 && AppSettings.shared.lazyDelay <= 30, "lazy delay within 1–30")
-
-        // Save folder: Downloads by default; saving into a missing folder creates it (temp folder, never the real Downloads)
+        // Save folder: saving into a missing folder creates it (temp folder, never the real Downloads)
         let settings = AppSettings.shared
         let originalFolder = settings.saveFolder
-        check(UserDefaults.standard.string(forKey: "saveFolder") != nil || settings.saveFolder == AppSettings.downloadsFolder, "save folder defaults to Downloads")
         let saveRoot = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-save-\(UUID().uuidString)")
         let nested = saveRoot.appendingPathComponent("screens/2026", isDirectory: true)
         settings.saveFolder = nested
@@ -873,11 +850,9 @@ struct SelfCheck {
         spin(0.5)
         snapshot(general, "settings-general.png")
         generalWindow.close()
-        let iconDir = "\(repo)/Shortty/Resources/Assets.xcassets/AppIcon.appiconset"
-        let sizes = [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 32), ("icon_32x32@2x", 64), ("icon_128x128", 128),
-                     ("icon_128x128@2x", 256), ("icon_256x256", 256), ("icon_256x256@2x", 512), ("icon_512x512", 512), ("icon_512x512@2x", 1024)]
-        check(sizes.allSatisfy { size in
-            (try? Data(contentsOf: URL(fileURLWithPath: "\(iconDir)/\(size.0).png"))).flatMap { NSBitmapImageRep(data: $0) }?.pixelsWide == size.1
+        let sizes = [16, 32, 128, 256, 512].flatMap { p in [("icon_\(p)x\(p)", p), ("icon_\(p)x\(p)@2x", 2 * p)] }
+        check(sizes.allSatisfy { size in // the self-check runs from the repo root
+            (try? Data(contentsOf: URL(fileURLWithPath: "Shortty/Resources/Assets.xcassets/AppIcon.appiconset/\(size.0).png"))).flatMap { NSBitmapImageRep(data: $0) }?.pixelsWide == size.1
         }, "all 10 app icon PNGs at the right size")
 
         finish()

@@ -4,8 +4,8 @@ import Carbon.HIToolbox
 /// Full-screen crosshair overlay to drag out a rectangle, without stealing focus from the frontmost app.
 /// Returns the rectangle in global AppKit coordinates (bottom-left origin), or nil on Esc / right-click.
 enum RegionSelector {
-    enum Selection: Equatable { case area(CGRect), window }
-    enum KeyAction: Equatable { case cancel, pickWindow }
+    enum Selection { case area(CGRect), window }
+    enum KeyAction { case cancel, pickWindow }
 
     /// An area only.
     static func select(hint: String = "Drag to select the lazy shot area   ·   Esc to cancel") async -> CGRect? {
@@ -14,10 +14,14 @@ enum RegionSelector {
     }
 
     /// An area, or (with `allowsWindow`) Space to switch to clicking a window, like the system's ⌘⇧4.
+    /// Asks for Screen Recording first, and after an area waits for the overlay to leave the screen before capturing.
     static func choose(hint: String, allowsWindow: Bool) async -> Selection? {
-        await withCheckedContinuation { continuation in
-            SelectionSession(hint: hint, allowsWindow: allowsWindow) { continuation.resume(returning: $0) }.begin()
+        guard ScreenCapture.hasPermission() else { return nil }
+        let selection: Selection? = await withCheckedContinuation { continuation in
+            SelectionSession().begin(hint: hint, allowsWindow: allowsWindow) { continuation.resume(returning: $0) }
         }
+        if case .area? = selection { try? await Task.sleep(for: .milliseconds(80)) }
+        return selection
     }
 
     /// Keys while selecting: Esc cancels; Space picks a window when that's allowed.
@@ -30,20 +34,37 @@ enum RegionSelector {
     }
 }
 
-/// Borderless panel that takes keyboard focus (for Esc) without activating Shortty.
-private final class OverlayPanel: NSPanel {
+/// Borderless, transparent panel that takes keyboard focus (for Esc / Return) without activating Shortty.
+/// Shared by the selection and countdown overlays, the scrolling capture panel, toasts and pinned screenshots.
+class OverlayPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
-    convenience init(screen: NSScreen) {
-        self.init(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        level = .screenSaver
+    init(contentRect: CGRect, level: NSWindow.Level) {
+        super.init(contentRect: contentRect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        self.level = level
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
         hidesOnDeactivate = false
         isReleasedWhenClosed = false
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
+    /// Covers a whole screen, above everything (selection and countdown overlays).
+    convenience init(screen: NSScreen) {
+        self.init(contentRect: screen.frame, level: .screenSaver)
+        collectionBehavior.insert(.stationary)
         setFrame(screen.frame, display: false)
+    }
+
+    /// Centered below `rect`, else above it, else inside its bottom edge; kept on `rect`'s screen.
+    func place(beside rect: CGRect, gap: CGFloat) {
+        let size = frame.size
+        let screen = NSScreen.screens.first { $0.frame.intersects(rect) }?.visibleFrame ?? rect
+        let x = min(max(rect.midX - size.width / 2, screen.minX + gap), screen.maxX - size.width - gap)
+        let below = rect.minY - gap - size.height
+        let y = below >= screen.minY ? below : rect.maxY + gap + size.height <= screen.maxY ? rect.maxY + gap : rect.minY + gap
+        setFrameOrigin(CGPoint(x: x, y: y))
     }
 }
 
@@ -51,17 +72,10 @@ private final class SelectionSession {
     private static var active: SelectionSession? // keeps the session alive while on screen
     private var panels: [OverlayPanel] = []
     private var finish: ((RegionSelector.Selection?) -> Void)?
-    private let hint: String
-    private let allowsWindow: Bool
 
-    init(hint: String, allowsWindow: Bool, finish: @escaping (RegionSelector.Selection?) -> Void) {
-        self.hint = hint
-        self.allowsWindow = allowsWindow
-        self.finish = finish
-    }
-
-    func begin() {
+    func begin(hint: String, allowsWindow: Bool, finish: @escaping (RegionSelector.Selection?) -> Void) {
         Self.active = self
+        self.finish = finish
         let mouse = NSEvent.mouseLocation
         for screen in NSScreen.screens {
             let panel = OverlayPanel(screen: screen)

@@ -4,7 +4,6 @@ enum Theme {
     static let accent = Color(red: 1.0, green: 0.42, blue: 0.24)
     static let chrome = Color(red: 0.165, green: 0.165, blue: 0.18)
     static let chromeText = Color.white.opacity(0.85)
-    static let chromeSubtext = Color.white.opacity(0.45)
     /// Fixed RGB (not system colors) so exports look the same in light and dark mode.
     static let palette: [Color] = [
         accent,

@@ -3,7 +3,6 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory) // menu bar only, also when run outside a bundle
-        HotkeyManager.shared.onPress = { CaptureController.shared.perform($0) }
         HotkeyManager.shared.register(AppSettings.shared.hotkeys)
         ScreenCapture.log.notice("launched from \(Bundle.main.bundlePath, privacy: .public); screen recording granted=\(CGPreflightScreenCaptureAccess())")
     }

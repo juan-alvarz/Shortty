@@ -1,10 +1,9 @@
 import AppKit
 
 /// Rectangle or ellipse: the spotlight's hole and the magnifier's lens.
-enum AreaShape: String, CaseIterable {
+enum AreaShape: CaseIterable {
     case rectangle, ellipse
 
-    var title: String { self == .rectangle ? "Rectangle" : "Ellipse" }
     var icon: IconKind { self == .rectangle ? .rectangle : .ellipse }
 
     func path(in rect: CGRect, cornerRadius: CGFloat) -> CGPath {
@@ -32,16 +31,9 @@ enum AreaShape: String, CaseIterable {
 
 /// Shottr's four ways to hide things.
 enum RedactStyle: String, CaseIterable {
-    case blur, blurText, erase, eraseText
+    case blur = "Blur", blurText = "Blur Text", erase = "Erase", eraseText = "Erase Text"
 
-    var title: String {
-        switch self {
-        case .blur: "Blur"
-        case .blurText: "Blur Text"
-        case .erase: "Erase"
-        case .eraseText: "Erase Text"
-        }
-    }
+    var title: String { rawValue }
 
     /// Only the text inside the area (found with Vision), not the whole area.
     var textOnly: Bool { self == .blurText || self == .eraseText }
@@ -53,8 +45,8 @@ enum Magnifier {
     static let defaultZoom: CGFloat = 2
 
     /// Where the magnified copy goes: beside the source (right, left, below, above), inside the image when it fits.
-    static func target(for source: CGRect, zoom: CGFloat, within bounds: CGRect) -> CGRect {
-        let size = CGSize(width: source.width * zoom, height: source.height * zoom)
+    static func target(for source: CGRect, within bounds: CGRect) -> CGRect {
+        let size = CGSize(width: source.width * defaultZoom, height: source.height * defaultZoom)
         let gap = max(16, min(source.width, source.height) * 0.4)
         let candidates = [
             CGRect(x: source.maxX + gap, y: source.midY - size.height / 2, width: size.width, height: size.height),
@@ -91,7 +83,7 @@ extension CGImage {
         var reds: [UInt8] = [], greens: [UInt8] = [], blues: [UInt8] = []
         for strip in strips {
             let area = strip.integral.intersection(bounds)
-            guard !area.isNull, area.width >= 1, area.height >= 1, let crop = cropping(to: area) else { continue }
+            guard !area.isEmpty, let crop = cropping(to: area) else { continue }
             let w = min(Int(area.width), 64), h = min(Int(area.height), 64)
             var pixels = [UInt8](repeating: 0, count: w * h * 4)
             let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
@@ -125,7 +117,7 @@ extension CGContext {
     /// Mosaic of `block`-pixel squares over `rect`.
     func pixelate(_ rect: CGRect, of image: CGImage, block: CGFloat) {
         let area = rect.integral.intersection(image.bounds)
-        guard !area.isNull, area.width >= 1, area.height >= 1, let crop = image.cropping(to: area) else { return }
+        guard !area.isEmpty, let crop = image.cropping(to: area) else { return }
         let columns = max(Int((area.width / block).rounded()), 1), rows = max(Int((area.height / block).rounded()), 1)
         guard let small = CGContext(data: nil, width: columns, height: rows, bitsPerComponent: 8, bytesPerRow: 0,
                                     space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
@@ -164,7 +156,7 @@ extension CGContext {
         endTransparencyLayer()
         restoreGState()
 
-        setLineWidth(Self.spotlightBorder)
+        setLineWidth(4)
         for hole in holes {
             setStrokeColor(hole.color)
             addPath(hole.shape.path(in: hole.rect, cornerRadius: 6))
@@ -172,15 +164,13 @@ extension CGContext {
         }
     }
 
-    static let spotlightBorder: CGFloat = 4
-
     /// The source outline, the enlarged copy inside the target, and a line joining them.
     func drawMagnifier(source: CGRect, target: CGRect, shape: AreaShape, of image: CGImage, color: CGColor, width: CGFloat) {
         let source = source.standardized, target = target.standardized
         guard source.width >= 1, source.height >= 1 else { return }
         let radius = min(target.width, target.height) * 0.12
         let visible = source.integral.intersection(image.bounds)
-        if !visible.isNull, visible.width >= 1, visible.height >= 1, let crop = image.cropping(to: visible) {
+        if !visible.isEmpty, let crop = image.cropping(to: visible) {
             let sx = target.width / source.width, sy = target.height / source.height
             let destination = CGRect(x: target.minX + (visible.minX - source.minX) * sx, y: target.minY + (visible.minY - source.minY) * sy,
                                      width: visible.width * sx, height: visible.height * sy)

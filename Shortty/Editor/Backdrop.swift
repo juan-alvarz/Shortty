@@ -61,20 +61,3 @@ extension CGContext {
         restoreGState()
     }
 }
-
-extension CGImage {
-    /// This image (the flattened screenshot) placed on `backdrop`.
-    func addingBackdrop(_ backdrop: Backdrop) -> CGImage {
-        let content = bounds
-        let pad = backdrop.paddingSize(for: content)
-        let canvas = content.insetBy(dx: -pad, dy: -pad)
-        guard let context = CGContext(data: nil, width: Int(canvas.width), height: Int(canvas.height), bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-        else { return self }
-        context.translateBy(x: 0, y: canvas.height)
-        context.scaleBy(x: 1, y: -1)
-        context.translateBy(x: -canvas.minX, y: -canvas.minY)
-        context.drawBackdrop(backdrop, canvas: canvas, content: content) { context.drawUpright(self, in: content) }
-        return context.makeImage() ?? self
-    }
-}

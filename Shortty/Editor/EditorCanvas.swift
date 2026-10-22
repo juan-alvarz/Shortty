@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 import VisionKit
 
 /// Image + annotations inside a native NSScrollView: pinch and ⌘-wheel zoom anchored at the pointer,
@@ -57,9 +58,8 @@ final class CanvasScrollView: NSScrollView {
     private func dropOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
         if sender.draggingSource is DragSourceView { return [] }
         let board = sender.draggingPasteboard
-        let hasImageFile = (board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true,
-                                                                                .urlReadingContentsConformToTypes: ["public.image"]]) ?? []).isEmpty == false
-        return hasImageFile || board.canReadObject(forClasses: [NSImage.self], options: nil) ? .copy : []
+        let imageFiles: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier]]
+        return board.canReadObject(forClasses: [NSURL.self], options: imageFiles) || board.canReadObject(forClasses: [NSImage.self]) ? .copy : []
     }
 
     /// Clicks in the empty area around the image go to the canvas too, so you can draw or grab things out there.
@@ -105,7 +105,6 @@ final class CanvasScrollView: NSScrollView {
                 reflectScrolledClipView(contentView)
             }
         }
-        canvas.annotationsChanged()
         apply(model.zoom ?? fitMagnification)
     }
 
@@ -117,13 +116,12 @@ final class CanvasScrollView: NSScrollView {
     }
 
     private func apply(_ target: CGFloat, centeredAt point: CGPoint? = nil) {
-        let target = EditorModel.clampZoom(target)
+        let target = target.clamped(to: EditorModel.zoomRange)
         if abs(magnification - target) > 0.0001 {
             let visible = documentVisibleRect
             setMagnification(target, centeredAt: point ?? CGPoint(x: visible.midX, y: visible.midY))
         }
-        canvas.scaleChanged(to: magnification)
-        model.displayedZoom = magnification
+        boundsChanged()
     }
 
     override func setFrameSize(_ newSize: NSSize) {
@@ -139,7 +137,7 @@ final class CanvasScrollView: NSScrollView {
         let delta = event.isDirectionInvertedFromDevice ? -event.scrollingDeltaY : event.scrollingDeltaY
         guard delta != 0 else { return }
         let factor = event.hasPreciseScrollingDeltas ? exp(delta * 0.01) : (delta > 0 ? 1.25 : 1 / 1.25)
-        let target = EditorModel.clampZoom(magnification * factor)
+        let target = (magnification * factor).clamped(to: EditorModel.zoomRange)
         apply(target, centeredAt: canvas.convert(event.locationInWindow, from: nil))
         model.zoom = target
     }
@@ -148,7 +146,7 @@ final class CanvasScrollView: NSScrollView {
 
     @objc private func boundsChanged() {
         model.displayedZoom = magnification
-        canvas.scaleChanged(to: magnification) // handles keep their on-screen size during a pinch
+        canvas.refresh(magnification: magnification) // handles keep their on-screen size during a pinch
     }
 }
 
@@ -166,30 +164,15 @@ private final class CenteringClipView: NSClipView {
 
 // MARK: - Canvas
 
-/// The 8 resize handles around a selection. In flipped coordinates, so min y is the top edge.
-private enum Handle: CaseIterable {
-    case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
-
-    /// -1 moves the min edge, 1 the max edge, 0 neither.
-    var dx: CGFloat {
-        switch self {
-        case .topLeft, .left, .bottomLeft: -1
-        case .top, .bottom: 0
-        case .topRight, .right, .bottomRight: 1
-        }
-    }
-
-    var dy: CGFloat {
-        switch self {
-        case .topLeft, .top, .topRight: -1
-        case .left, .right: 0
-        case .bottomLeft, .bottom, .bottomRight: 1
-        }
-    }
+/// A resize handle around a selection, as the edges it moves: -1 the min edge, 1 the max edge, 0 neither.
+/// In flipped coordinates, so min y is the top edge.
+private struct Handle {
+    let dx: CGFloat, dy: CGFloat
+    /// All 8, clockwise from the top-left.
+    static let all: [Handle] = [(-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0)].map { Handle(dx: $0, dy: $1) }
+    static let corners = all.filter(\.isCorner)
 
     var isCorner: Bool { dx != 0 && dy != 0 }
-    static let corners: [Handle] = [.topLeft, .topRight, .bottomRight, .bottomLeft]
-
     var cursor: NSCursor { dx == 0 ? .resizeUpDown : dy == 0 ? .resizeLeftRight : .crosshair }
 
     func point(in rect: CGRect) -> CGPoint {
@@ -223,12 +206,7 @@ private enum Grip {
     /// Magnifier corners: resizing the source keeps the zoom; resizing the enlarged copy changes it.
     case magnifierSource(Handle), magnifierTarget(Handle)
 
-    var cursor: NSCursor {
-        switch self {
-        case .box(let handle): handle.cursor
-        case .arrowStart, .arrowBend, .arrowEnd, .calloutPointer, .magnifierSource, .magnifierTarget: .crosshair
-        }
-    }
+    var cursor: NSCursor { if case .box(let handle) = self { handle.cursor } else { .crosshair } }
 }
 
 /// Where an annotation's grips sit, in image pixels.
@@ -245,16 +223,16 @@ private func grips(for annotation: Annotation) -> [(grip: Grip, point: CGPoint)]
         break
     }
     let box = annotation.bounds
-    return Handle.allCases.map { (.box($0), $0.point(in: box)) }
+    return Handle.all.map { (.box($0), $0.point(in: box)) }
 }
 
 /// Document view at natural size (points); the scroll view's magnification scales it.
-/// Handles the mouse; draws nothing itself (image and annotations are separate layers so edits never repaint the image).
+/// Handles the mouse; draws nothing itself (the image and the annotations are separate layer views).
 private final class CanvasView: NSView {
     private enum Drag {
         case drawing(id: Annotation.ID, start: CGPoint)
         case moving(original: Annotation, start: CGPoint)
-        case resizing(original: Annotation, box: CGRect, handle: Handle)
+        case resizing(original: Annotation, handle: Handle)
         case reshaping(original: Annotation, grip: Grip)
         /// One lens of a magnifier: the source area, or the enlarged copy.
         case movingLens(original: Annotation, target: Bool, start: CGPoint)
@@ -262,14 +240,6 @@ private final class CanvasView: NSView {
         case cropping(start: CGPoint)
         case cropResize(box: CGRect, handle: Handle)
         case cropMove(box: CGRect, start: CGPoint)
-
-        var annotationID: Annotation.ID? {
-            switch self {
-            case .drawing(let id, _): id
-            case .moving(let original, _), .resizing(let original, _, _), .reshaping(let original, _), .movingLens(let original, _, _): original.id
-            case .cropping, .cropResize, .cropMove: nil
-            }
-        }
     }
 
     private let model: EditorModel
@@ -309,6 +279,8 @@ private final class CanvasView: NSView {
             layer.autoresizingMask = [.width, .height]
             addSubview(layer)
         }
+        // .inVisibleRect keeps the area matched to the visible part as it scrolls and zooms.
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -316,6 +288,7 @@ private final class CanvasView: NSView {
     override var isFlipped: Bool { true }
     override var mouseDownCanMoveWindow: Bool { false }
 
+    /// Resizes the canvas. The scroll view's `refresh` always follows and repaints.
     func setCanvas(_ rect: CGRect, pixelsPerPoint: CGFloat) {
         canvasRect = rect
         self.pixelsPerPoint = pixelsPerPoint
@@ -326,29 +299,15 @@ private final class CanvasView: NSView {
             layer.canvasRect = rect
             layer.pixelsPerPoint = pixelsPerPoint
         }
-        imageView.needsDisplay = true
-        overlay.needsDisplay = true
-        syncTextEditor()
     }
 
-    /// What the image layer last drew around the image; it only repaints when these change (not on every stroke).
-    private var drawnPlate: (content: CGRect, backdrop: Backdrop?) = (.null, nil)
-
-    func annotationsChanged() {
-        overlay.needsDisplay = true
-        updateLiveText()
-        if drawnPlate.content != model.contentRect || drawnPlate.backdrop != model.backdrop {
-            drawnPlate = (model.contentRect, model.backdrop)
-            imageView.needsDisplay = true
-        }
-        syncTextEditor()
-    }
-
-    func scaleChanged(to magnification: CGFloat) {
+    /// After any model change, zoom or scroll: repaints both layers, then lines up Live Text and the text editor.
+    func refresh(magnification: CGFloat) {
         imageView.layer?.magnificationFilter = magnification > 1 ? .nearest : .linear // crisp pixels when enlarged
         imageView.needsDisplay = true
         overlay.needsDisplay = true
-        syncTextEditor() // the canvas size (points per pixel) may have changed with a new image
+        updateLiveText()
+        syncTextEditor()
     }
 
     // MARK: Geometry
@@ -380,12 +339,6 @@ private final class CanvasView: NSView {
 
     // MARK: Cursor
 
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
-    }
-
     override func cursorUpdate(with event: NSEvent) { cursor(for: imagePoint(event)).set() }
     override func mouseMoved(with event: NSEvent) { if drag == nil { cursor(for: imagePoint(event)).set() } }
 
@@ -413,7 +366,7 @@ private final class CanvasView: NSView {
 
         if let grip = grip(at: point), let selected = model.selectedAnnotation {
             if case .box(let handle) = grip {
-                drag = .resizing(original: selected, box: selected.bounds, handle: handle)
+                drag = .resizing(original: selected, handle: handle)
                 overlay.showsSize = true
             } else {
                 drag = .reshaping(original: selected, grip: grip)
@@ -423,7 +376,7 @@ private final class CanvasView: NSView {
                 model.select(nil)
                 return
             }
-            if event.clickCount == 2, hit.isText {
+            if event.clickCount == 2, hit.tool == .text {
                 model.beginEditing(hit.id)
                 return
             }
@@ -435,30 +388,17 @@ private final class CanvasView: NSView {
         } else if model.tool == .crop {
             drag = cropDrag(at: point)
             return
-        } else if model.tool == .step {
-            if let hit = annotation(at: point), hit.isStep {
-                model.select(hit.id)
-                drag = .moving(original: hit, start: point)
-            } else {
-                let step = Annotation(shape: .step(center: point), color: model.color, width: model.width(for: .step))
-                model.annotations.append(step)
-                model.selection = step.id
-                drag = .moving(original: step, start: point) // keep the button down to place it precisely
-            }
-        } else if let selected = model.selectedAnnotation, [.magnifier, .blur, .spotlight].contains(selected.tool),
-                  selected.tool == model.tool, selected.contains(point, tolerance: 4 * pixelsPerScreenPoint) {
-            // The effect just drawn stays selected; dragging it moves it instead of drawing another.
-            drag = Self.moveDrag(for: selected, at: point)
+        } else if let hit = annotation(at: point), hit.tool == model.tool,
+                  [.step, .text].contains(hit.tool) || hit.id == model.selection && [.magnifier, .blur, .spotlight].contains(hit.tool) {
+            // An existing step or text, or the effect just drawn (it stays selected): dragging moves it instead of
+            // adding another; a click on text edits it.
+            model.select(hit.id)
+            drag = Self.moveDrag(for: hit, at: point)
+            if hit.tool == .text { editOnClick = hit.id }
             NSCursor.closedHand.set()
         } else if model.tool == .text {
-            if let hit = annotation(at: point), hit.isText {
-                model.select(hit.id)
-                drag = .moving(original: hit, start: point)
-                editOnClick = hit.id
-            } else {
-                startText(at: point)
-                return
-            }
+            startText(at: point)
+            return
         } else {
             let shape: Annotation.Shape = switch model.tool {
             case .rectangle: .rectangle(CGRect(origin: point, size: .zero))
@@ -467,13 +407,14 @@ private final class CanvasView: NSView {
             case .blur: .redact(rect: CGRect(origin: point, size: .zero), style: model.redactStyle, textBoxes: [])
             case .spotlight: .spotlight(rect: CGRect(origin: point, size: .zero), shape: model.spotlightShape)
             case .magnifier: .magnifier(source: CGRect(origin: point, size: .zero), target: CGRect(origin: point, size: .zero), shape: model.magnifierShape)
-            case .pencil, .select, .text, .recognizeText, .step, .crop: .stroke([point, point]) // 2 points so a click draws a dot
+            case .step: .step(center: point) // keep the button down to place it precisely
+            case .pencil, .select, .text, .recognizeText, .crop: .stroke([point, point]) // 2 points so a click draws a dot
             }
             let annotation = Annotation(shape: shape, color: model.color, width: model.width(for: model.tool))
             model.annotations.append(annotation)
-            model.selection = annotation.isStroke ? nil : annotation.id // shapes and arrows stay selected to adjust right away
+            model.selection = annotation.tool == .pencil ? nil : annotation.id // shapes, arrows and steps stay selected to adjust right away
             drag = .drawing(id: annotation.id, start: point)
-            overlay.showsSize = annotation.usesBoxHandles && !annotation.isStroke
+            overlay.showsSize = annotation.usesBoxHandles && annotation.tool != .pencil
         }
         // Shift pressed or released mid-drag takes effect without moving the mouse.
         shiftMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
@@ -494,7 +435,6 @@ private final class CanvasView: NSView {
         if let shiftMonitor { NSEvent.removeMonitor(shiftMonitor) }
         shiftMonitor = nil
         overlay.showsSize = false
-        overlay.needsDisplay = true
         defer {
             drag = nil
             onDragEnd?()
@@ -513,7 +453,7 @@ private final class CanvasView: NSView {
             model.selection = nil
         }
         model.recordChange(from: annotationsBeforeDrag)
-        if let id = drag.annotationID { model.refreshTextBoxes(id) } // Blur/Erase Text: find the text under its new area
+        if let id = model.selection { model.refreshTextBoxes(id) } // Blur/Erase Text (always the selection): find the text under its new area
         if let id = editOnClick, !moved { model.beginEditing(id) }
     }
 
@@ -521,7 +461,7 @@ private final class CanvasView: NSView {
     private func cropDrag(at point: CGPoint) -> Drag {
         if let box = model.cropBox?.standardized {
             let reach = 7 * pixelsPerScreenPoint
-            if let handle = Handle.allCases.first(where: { hypot($0.point(in: box).x - point.x, $0.point(in: box).y - point.y) <= reach }) {
+            if let handle = Handle.all.first(where: { hypot($0.point(in: box).x - point.x, $0.point(in: box).y - point.y) <= reach }) {
                 return .cropResize(box: box, handle: handle)
             }
             if box.contains(point) { return .cropMove(box: box, start: point) }
@@ -575,24 +515,31 @@ private final class CanvasView: NSView {
                 model.annotations[index].shape = .ellipse(Annotation.dragRect(from: start, to: point, square: shift))
             case .arrow(_, _, let bend, let style):
                 model.annotations[index].shape = .arrow(start: start, end: shift ? Self.snapped(from: start, to: point) : point, bend: bend, style: style)
-            case .text, .image, .step:
-                break // text is typed, pictures inserted, steps placed with a click
+            case .step:
+                model.annotations[index].shape = .step(center: point)
+            case .text, .image:
+                break // text is typed, pictures inserted
             case .redact(_, let style, let boxes):
                 model.annotations[index].shape = .redact(rect: Annotation.dragRect(from: start, to: point, square: shift), style: style, textBoxes: boxes)
             case .spotlight(_, let shape):
                 model.annotations[index].shape = .spotlight(rect: Annotation.dragRect(from: start, to: point, square: shift), shape: shape)
             case .magnifier(_, _, let shape):
                 let source = Annotation.dragRect(from: start, to: point, square: shift)
-                let target = Magnifier.target(for: source, zoom: Magnifier.defaultZoom, within: model.image.bounds)
+                let target = Magnifier.target(for: source, within: model.image.bounds)
                 model.annotations[index].shape = .magnifier(source: source, target: target, shape: shape)
             }
-        case .moving(let original, let start):
+        case .moving(let original, let start), .movingLens(let original, _, let start):
             var offset = CGPoint(x: point.x - start.x, y: point.y - start.y)
             if shift { abs(offset.x) > abs(offset.y) ? (offset.y = 0) : (offset.x = 0) } // Shift: move along one axis
-            replace(original.moved(by: offset))
-        case .resizing(let original, let box, let handle):
+            guard case .movingLens(_, let movingTarget, _) = drag, case .magnifier(let source, let target, let shape) = original.shape
+            else { return replace(original.moved(by: offset)) }
+            var moved = original
+            let shifted = { (rect: CGRect) in rect.offsetBy(dx: offset.x, dy: offset.y) }
+            moved.shape = .magnifier(source: movingTarget ? source : shifted(source), target: movingTarget ? shifted(target) : target, shape: shape)
+            replace(moved)
+        case .resizing(let original, let handle):
             // Pictures keep their proportions unless Shift is held; shapes are the other way round.
-            replace(original.resized(from: box, to: handle.resize(box, to: point, keepAspect: original.isImage ? !shift : shift)))
+            replace(original.resized(from: original.bounds, to: handle.resize(original.bounds, to: point, keepAspect: original.isImage ? !shift : shift)))
         case .reshaping(let original, let grip):
             var reshaped = original
             switch original.shape {
@@ -626,14 +573,6 @@ private final class CanvasView: NSView {
                 return
             }
             replace(reshaped)
-        case .movingLens(let original, let movingTarget, let start):
-            guard case .magnifier(let source, let target, let shape) = original.shape else { return }
-            var offset = CGPoint(x: point.x - start.x, y: point.y - start.y)
-            if shift { abs(offset.x) > abs(offset.y) ? (offset.y = 0) : (offset.x = 0) }
-            var moved = original
-            let shifted = { (rect: CGRect) in rect.offsetBy(dx: offset.x, dy: offset.y) }
-            moved.shape = .magnifier(source: movingTarget ? source : shifted(source), target: movingTarget ? shifted(target) : target, shape: shape)
-            replace(moved)
         case .cropping(let start):
             setCropBox(Annotation.dragRect(from: start, to: point, square: shift))
         case .cropResize(let box, let handle):
@@ -782,18 +721,11 @@ extension CanvasView: NSTextViewDelegate {
     }
 }
 
-/// A canvas layer that draws in image pixels, offset by the canvas origin.
-private protocol CanvasLayer: AnyObject {
-    var canvasRect: CGRect { get set }
-    var pixelsPerPoint: CGFloat { get set }
-}
-
-/// The screenshot, plus the edge-colored fill where the canvas grows past it. Redrawn only when those or the zoom change.
-private final class ImageLayerView: NSView, CanvasLayer {
-    private let model: EditorModel
+/// A canvas layer: draws in image pixels, offset by the canvas origin. Clicks go through to the canvas.
+private class CanvasLayer: NSView {
+    let model: EditorModel
     var canvasRect: CGRect = .zero
     var pixelsPerPoint: CGFloat = 2
-    private var edgeColor: (image: CGImage, color: CGColor)?
 
     init(model: EditorModel) {
         self.model = model
@@ -806,6 +738,11 @@ private final class ImageLayerView: NSView, CanvasLayer {
 
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// The screenshot, plus the edge-colored fill where the canvas grows past it.
+private final class ImageLayerView: CanvasLayer {
+    private var edgeColor: (image: CGImage, color: CGColor)?
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
@@ -834,46 +771,27 @@ private final class ImageLayerView: NSView, CanvasLayer {
 }
 
 /// Annotations, the selection box with handles, and a size label while drawing or resizing shapes.
-private final class AnnotationLayerView: NSView, CanvasLayer {
-    private let model: EditorModel
-    var canvasRect: CGRect = .zero
-    var pixelsPerPoint: CGFloat = 2
+private final class AnnotationLayerView: CanvasLayer {
     var showsSize = false
-
-    init(model: EditorModel) {
-        self.model = model
-        super.init(frame: .zero)
-        wantsLayer = true
-        layerContentsRedrawPolicy = .onSetNeedsDisplay
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
-
-    override var isFlipped: Bool { true }
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext, bounds.width > 0 else { return }
-        let screenPoint = 1 / (enclosingScrollView?.magnification ?? 1) // one on-screen point, in view units
-        // From here on, (x / pixelsPerPoint) maps image pixels to view points.
-        context.translateBy(x: -canvasRect.minX / pixelsPerPoint, y: -canvasRect.minY / pixelsPerPoint)
+        let screenPoint = pixelsPerPoint / (enclosingScrollView?.magnification ?? 1) // one on-screen point, in image pixels
+        context.scaleBy(x: 1 / pixelsPerPoint, y: 1 / pixelsPerPoint)
+        context.translateBy(x: -canvasRect.minX, y: -canvasRect.minY) // image pixel coordinates from here on
 
         context.saveGState()
-        context.scaleBy(x: 1 / pixelsPerPoint, y: 1 / pixelsPerPoint)
         context.drawAnnotations(model.annotations, on: model.image, canvas: model.contentRect, hidingTextOf: model.editingID)
         context.restoreGState()
-
 
         if model.tool == .crop, let crop = model.cropBox {
             drawCropBox(crop, screenPoint: screenPoint)
         }
 
         guard let selected = model.selectedAnnotation else { return }
-        let pixels = selected.textBox?.box.insetBy(dx: -3, dy: -3) ?? selected.bounds
-        let box = CGRect(x: pixels.minX / pixelsPerPoint, y: pixels.minY / pixelsPerPoint,
-                         width: pixels.width / pixelsPerPoint, height: pixels.height / pixelsPerPoint)
+        let box = selected.textBox?.box.insetBy(dx: -3, dy: -3) ?? selected.bounds
 
-        if selected.usesBoxHandles || selected.isText || selected.isStep {
+        if selected.usesBoxHandles || [.text, .step].contains(selected.tool) {
             let outline = NSBezierPath(rect: box)
             outline.lineWidth = screenPoint
             outline.setLineDash([4 * screenPoint, 3 * screenPoint], count: 2, phase: 0)
@@ -882,8 +800,7 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
         }
 
         let size = 8 * screenPoint
-        for (_, pixel) in grips(for: selected) {
-            let center = CGPoint(x: pixel.x / pixelsPerPoint, y: pixel.y / pixelsPerPoint)
+        for (_, center) in grips(for: selected) {
             let square = NSBezierPath(roundedRect: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size),
                                       xRadius: 2 * screenPoint, yRadius: 2 * screenPoint)
             NSColor.white.setFill()
@@ -893,24 +810,14 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
             square.stroke()
         }
 
-        if showsSize, selected.usesBoxHandles, !selected.isStroke {
-            context.saveGState()
-            context.translateBy(x: box.maxX, y: box.maxY + 10 * screenPoint)
-            context.scaleBy(x: screenPoint, y: screenPoint) // label stays the same size at any zoom
-            drawPill("\(Int(pixels.width.rounded())) × \(Int(pixels.height.rounded()))", font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium)) { size in
-                CGPoint(x: -size.width, y: 0)
-            }
-            context.restoreGState()
+        if showsSize, selected.usesBoxHandles, selected.tool != .pencil {
+            drawSizeLabel(box, screenPoint: screenPoint)
         }
     }
 
     /// Crop tool: everything outside the box dimmed, a dashed outline, handles and the resulting size.
-    private func drawCropBox(_ crop: CGRect, screenPoint: CGFloat) {
-        func view(_ rect: CGRect) -> CGRect {
-            CGRect(x: rect.minX / pixelsPerPoint, y: rect.minY / pixelsPerPoint, width: rect.width / pixelsPerPoint, height: rect.height / pixelsPerPoint)
-        }
-        let box = view(crop)
-        let dim = NSBezierPath(rect: view(model.contentRect))
+    private func drawCropBox(_ box: CGRect, screenPoint: CGFloat) {
+        let dim = NSBezierPath(rect: model.contentRect)
         dim.append(NSBezierPath(rect: box))
         dim.windingRule = .evenOdd
         NSColor.black.withAlphaComponent(0.55).setFill()
@@ -923,20 +830,24 @@ private final class AnnotationLayerView: NSView, CanvasLayer {
         outline.stroke()
 
         let size = 9 * screenPoint
-        for handle in Handle.allCases {
+        for handle in Handle.all {
             let center = handle.point(in: box)
             let square = NSBezierPath(roundedRect: CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size),
                                       xRadius: 2 * screenPoint, yRadius: 2 * screenPoint)
             NSColor.white.setFill()
             square.fill()
         }
+        drawSizeLabel(box, screenPoint: screenPoint)
+    }
 
+    /// "W × H" in image pixels under the box's bottom-right corner, the same size at any zoom.
+    private func drawSizeLabel(_ box: CGRect, screenPoint: CGFloat) {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
         context.translateBy(x: box.maxX, y: box.maxY + 10 * screenPoint)
         context.scaleBy(x: screenPoint, y: screenPoint)
-        drawPill("\(Int(crop.width)) × \(Int(crop.height))", font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium)) { size in
-            CGPoint(x: -size.width, y: 0)
+        drawPill("\(Int(box.width.rounded())) × \(Int(box.height.rounded()))", font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium)) {
+            CGPoint(x: -$0.width, y: 0)
         }
         context.restoreGState()
     }

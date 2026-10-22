@@ -18,7 +18,7 @@ Native Swift (SwiftUI + AppKit), lives in the menu bar, no third-party dependenc
 | Lazy Screen | none | Countdown, then the display under the pointer. |
 | Reopen Last Capture | none | Brings back the editor with the latest capture and its edits, even after a relaunch. |
 
-All four are in the menu bar too. During a countdown the seconds show next to the menu bar icon, and the menu has
+All of them are in the menu bar too. During a countdown the seconds show next to the menu bar icon, and the menu has
 "Cancel Lazy Shot". Shortcuts and the lazy delay (1–30 s, default 3) are in Settings → Shortcuts. Settings → General
 has Start at login, the capture sound, and the folder Save writes to. The latest capture is kept at
 `~/Library/Caches/com.shortty.Shortty/last-capture.png` so it can be reopened; each new capture replaces it.

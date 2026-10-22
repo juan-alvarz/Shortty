@@ -37,4 +37,6 @@ echo "Trusting the certificate for code signing (macOS will ask for your login p
 security add-trusted-cert -r trustRoot -p codeSign -k "$KEYCHAIN" "$TMP/cert.pem"
 
 security find-identity -v -p codesigning | grep "\"$NAME\"" || { echo "Certificate not usable; see above."; exit 1; }
+# Forget any grant tied to an old ad-hoc build so the next capture prompts cleanly once.
+tccutil reset ScreenCapture com.shortty.Shortty >/dev/null 2>&1 || true
 echo "Done: '$NAME' ready."
