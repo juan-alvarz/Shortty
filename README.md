@@ -5,18 +5,20 @@ Native Swift (SwiftUI + AppKit), lives in the menu bar, no third-party dependenc
 
 ## Capture
 
-| Action | Default shortcut | What it does |
-|---|---|---|
-| Capture Region | `⌘⇧9` | Drag over an area. Space switches to clicking a window, Esc cancels. |
-| Repeat Last Region | none | The same area as last time, no selecting (remembered across relaunches). |
-| Capture Screen | none | The display under the pointer. |
-| Capture Window | none | Click a window to capture it (without its shadow). |
-| Capture Active Window | none | The front window of the app you're in, instantly. |
-| Scrolling Capture | none | Drag over an area, then scroll the page: frames are stitched into one tall image (sticky headers/footers kept once). Press Done (Return) or Cancel (Esc) in the small panel. |
-| Capture Text | none | Drag over an area: a QR code's contents, or else its text, go straight to the clipboard. No editor; a small notice says what was copied. |
-| Lazy Region | `⌘⇧8` | Drag the area first, then a countdown runs and that exact area is captured. |
-| Lazy Screen | none | Countdown, then the display under the pointer. |
-| Reopen Last Capture | none | Brings back the editor with the latest capture and its edits, even after a relaunch. |
+| Action | What it does |
+|---|---|
+| Capture Region | Drag over an area. Space switches to clicking a window, Esc cancels. |
+| Repeat Last Region | The same area as last time, no selecting (remembered across relaunches). |
+| Capture Screen | The display under the pointer. |
+| Capture Window | Click a window to capture it (without its shadow). |
+| Capture Active Window | The front window of the app you're in, instantly. |
+| Scrolling Capture | Drag over an area, then scroll the page: frames are stitched into one tall image (sticky headers/footers kept once). Press Done (Return) or Cancel (Esc) in the small panel. |
+| Capture Text | Drag over an area: a QR code's contents, or else its text, go straight to the clipboard. No editor; a small notice says what was copied. |
+| Lazy Region | Drag the area first, then a countdown runs and that exact area is captured. |
+| Lazy Screen | Countdown, then the display under the pointer. |
+| Reopen Last Capture | Brings back the editor with the latest capture and its edits, even after a relaunch. |
+
+No shortcuts are set out of the box: record your own in Settings → Shortcuts, which lists every action with what it does.
 
 All of them are in the menu bar too. During a countdown the seconds show next to the menu bar icon, and the menu has
 "Cancel Lazy Shot". Shortcuts and the lazy delay (1–30 s, default 3) are in Settings → Shortcuts. Settings → General

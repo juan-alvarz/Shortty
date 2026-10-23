@@ -123,38 +123,24 @@ struct ShortcutsSettingsView: View {
     var body: some View {
         Form {
             Section("Capture") {
-                shortcutRow("Region", .region)
-                shortcutRow("Repeat last region", .repeatRegion)
-                shortcutRow("Screen", .screen)
-                shortcutRow("Window (click to pick)", .window)
-                shortcutRow("Active window", .activeWindow)
-                shortcutRow("Scrolling", .scrolling)
-                shortcutRow("Text or QR code", .captureText)
-                shortcutRow("Reopen last capture", .reopen)
+                ForEach([CaptureAction.region, .repeatRegion, .screen, .window, .activeWindow, .scrolling, .captureText, .reopen], id: \.self, content: shortcutRow)
             }
-            Section {
-                shortcutRow("Region", .lazyRegion)
-                shortcutRow("Screen", .lazyScreen)
+            Section("Lazy shots") {
+                ForEach([CaptureAction.lazyRegion, .lazyScreen], id: \.self, content: shortcutRow)
                 LabeledContent("Delay") { delayField }
-            } header: {
-                Text("Lazy shots")
-            } footer: {
-                Text("Region: select the area first, then Shortty counts down and captures it.\nScreen: counts down, then captures the screen under the pointer.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func shortcutRow(_ title: String, _ action: CaptureAction) -> some View {
-        LabeledContent(title) {
-            HotkeyRecorder(hotkey: Binding(
-                get: { settings.hotkeys[action] ?? action.defaultHotkey },
-                set: { settings.hotkeys[action] = $0 }))
+    /// The action, what it does, and its shortcut (none until you record one).
+    private func shortcutRow(_ action: CaptureAction) -> some View {
+        LabeledContent {
+            HotkeyRecorder(hotkey: Binding(get: { settings.hotkeys[action] ?? .none }, set: { settings.hotkeys[action] = $0 }))
+        } label: {
+            Text(action.title)
+            Text(action.summary)
         }
     }
 

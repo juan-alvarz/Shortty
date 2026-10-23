@@ -57,7 +57,7 @@ final class AppSettings {
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
         lazyDelay = (stored.object(forKey: "lazyDelay") as? Int ?? 3).clamped(to: Self.lazyDelayRange)
         hotkeys = Dictionary(uniqueKeysWithValues: CaptureAction.allCases.map { action in
-            (action, stored.string(forKey: action.hotkeyKey).flatMap(Hotkey.init(rawValue:)) ?? action.defaultHotkey)
+            (action, stored.string(forKey: action.hotkeyKey).flatMap(Hotkey.init(rawValue:)) ?? .none)
         })
     }
 }

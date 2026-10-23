@@ -12,7 +12,7 @@ struct HotkeyRecorder: View {
         Button {
             recording.toggle()
         } label: {
-            Text(recording ? "Press shortcut…" : hotkey.display)
+            Text(recording ? "Press shortcut…" : hotkey.isNone ? "Record Shortcut" : hotkey.display)
                 .frame(minWidth: 110)
                 .foregroundStyle(recording || hotkey.isNone ? .secondary : .primary)
         }

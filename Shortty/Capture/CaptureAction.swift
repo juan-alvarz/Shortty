@@ -1,7 +1,6 @@
-import AppKit
-import Carbon.HIToolbox
+import Foundation
 
-/// Everything the user can trigger from the menu bar or a global shortcut.
+/// Everything the user can trigger from the menu bar or a global shortcut. No shortcuts are set out of the box.
 enum CaptureAction: String, CaseIterable {
     case region, screen, lazyRegion, lazyScreen, reopen, scrolling, // new cases go last: hotkey ids follow this order
          repeatRegion, window, activeWindow, captureText
@@ -23,14 +22,23 @@ enum CaptureAction: String, CaseIterable {
         }
     }
 
+    /// What it does, under its name in Settings → Shortcuts.
+    var summary: String {
+        switch self {
+        case .region: "Drag over an area. Space switches to clicking a window, Esc cancels."
+        case .repeatRegion: "The same area as last time, without selecting."
+        case .screen: "The display under the pointer."
+        case .window: "Click a window to capture it, without its shadow."
+        case .activeWindow: "The front window of the app you're in, instantly."
+        case .scrolling: "Drag over an area, then scroll: the frames become one tall image."
+        case .captureText: "Drag over an area: its text or QR code goes to the clipboard."
+        case .reopen: "Brings back the editor with the latest capture and its edits."
+        case .lazyRegion: "Pick the area first, then a countdown runs and that area is captured."
+        case .lazyScreen: "A countdown, then the display under the pointer."
+        }
+    }
+
     /// Carbon hotkey id (must be non-zero and unique).
     var hotkeyID: UInt32 { UInt32(CaptureAction.allCases.firstIndex(of: self)! + 1) }
     var hotkeyKey: String { "hotkey.\(rawValue)" }
-    var defaultHotkey: Hotkey {
-        switch self {
-        case .region: Hotkey(keyCode: UInt32(kVK_ANSI_9), modifiers: NSEvent.ModifierFlags([.command, .shift]).rawValue, keyLabel: "9")
-        case .lazyRegion: Hotkey(keyCode: UInt32(kVK_ANSI_8), modifiers: NSEvent.ModifierFlags([.command, .shift]).rawValue, keyLabel: "8")
-        case .screen, .lazyScreen, .reopen, .scrolling, .repeatRegion, .window, .activeWindow, .captureText: .none
-        }
-    }
 }

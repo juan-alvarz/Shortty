@@ -98,6 +98,7 @@ private final class SelectionSession {
                 panel.orderFrontRegardless()
             }
         }
+        NSCursor.allowChangesInBackground()
         NSCursor.crosshair.set()
     }
 
@@ -247,5 +248,21 @@ private final class CountdownView: NSView {
             let y = above + size.height <= self.bounds.height ? above : below >= 0 ? below : self.region.maxY - size.height - 8
             return CGPoint(x: max(self.region.minX - 2, 0), y: y)
         }
+    }
+}
+
+extension NSCursor {
+    /// Lets Shortty set the pointer while another app is in front. It's a menu bar app that never activates, so
+    /// otherwise macOS keeps showing the frontmost app's arrow even over the selection overlay. Uses the private
+    /// CoreGraphics connection property "SetsCursorInBackground" that menu bar utilities rely on; false if it's gone.
+    @discardableResult
+    static func allowChangesInBackground() -> Bool {
+        typealias Connection = Int32
+        let anyImage = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
+        guard let defaultConnection = dlsym(anyImage, "_CGSDefaultConnection"), let setProperty = dlsym(anyImage, "CGSSetConnectionProperty")
+        else { return false }
+        let connection = unsafeBitCast(defaultConnection, to: (@convention(c) () -> Connection).self)()
+        let set = unsafeBitCast(setProperty, to: (@convention(c) (Connection, Connection, CFString, CFTypeRef) -> Int32).self)
+        return set(connection, connection, "SetsCursorInBackground" as CFString, kCFBooleanTrue) == 0
     }
 }

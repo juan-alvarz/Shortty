@@ -925,6 +925,19 @@ struct SelfCheck {
         check(history.items.isEmpty && pngs() == 0, "the trash deletes every capture")
         try? FileManager.default.removeItem(at: historyFolder)
 
+        // MARK: Shortcuts and the selection cursor
+        check(CaptureAction.allCases.allSatisfy { UserDefaults.standard.string(forKey: $0.hotkeyKey) != nil || settings.hotkeys[$0]?.isNone == true },
+              "no action has a shortcut until one is recorded")
+        check(NSCursor.allowChangesInBackground(), "the region selector can show the crosshair while another app is in front")
+        let shortcutsView = NSHostingView(rootView: ShortcutsSettingsView().frame(width: 460))
+        let shortcutsWindow = NSWindow(contentRect: NSRect(origin: .zero, size: shortcutsView.fittingSize), styleMask: [.titled], backing: .buffered, defer: false)
+        shortcutsWindow.appearance = NSAppearance(named: .darkAqua)
+        shortcutsWindow.contentView = shortcutsView
+        shortcutsWindow.orderFrontRegardless()
+        spin(0.5)
+        snapshot(shortcutsView, "settings-shortcuts.png")
+        shortcutsWindow.close()
+
         // MARK: Quick card
         let card = QuickCard.show(image, file: nil)
         spin(0.3)
