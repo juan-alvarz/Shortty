@@ -65,8 +65,15 @@ final class PinWindow: OverlayPanel {
         }
     }
 
-    @objc private func copyImage() { ImageExport.copy(image) }
-    @objc private func saveImage() { _ = try? ImageExport.save(image, to: AppSettings.shared.saveFolder) }
+    @objc private func copyImage() {
+        ImageExport.copy(image)
+        FloatingToast.show(ImageExport.copiedNotice, near: frame)
+    }
+
+    @objc private func saveImage() {
+        guard let url = try? ImageExport.save(image, to: AppSettings.shared.saveFolder) else { return }
+        FloatingToast.show(ImageExport.savedNotice(url), near: frame)
+    }
 }
 
 private final class PinView: NSView {

@@ -1001,6 +1001,16 @@ struct SelfCheck {
         check(saved.map { $0.deletingLastPathComponent().standardizedFileURL == nested.standardizedFileURL && CGImage.load(from: $0)?.width == image.width } == true
               && saved!.lastPathComponent.hasPrefix("shortty-") && saved!.lastPathComponent.hasSuffix("-image.png"),
               "Save writes shortty-…-image.png into the chosen folder, creating it")
+        // Save in the editor closes it and says where the file went (Copy isn't checked: it would touch the real clipboard)
+        editor.show(image)
+        spin(1.1) // file names have a one-second timestamp
+        let noticesBefore = NSApp.windows.filter { $0 is OverlayPanel && $0.isVisible }.count
+        editor.model.save()
+        let savedFiles = (try? FileManager.default.contentsOfDirectory(atPath: nested.path)) ?? []
+        check(!editorWindow.isVisible && savedFiles.count == 2 && NSApp.windows.filter { $0 is OverlayPanel && $0.isVisible }.count == noticesBefore + 1,
+              "Save in the editor writes the file, closes the editor and shows a notice")
+        check(ImageExport.savedNotice(URL(fileURLWithPath: NSHomeDirectory() + "/Downloads/shortty-1-image.png")) == "Saved to ~/Downloads/shortty-1-image.png",
+              "the notice names the file, with ~ for the home folder")
         try? FileManager.default.removeItem(at: saveRoot)
         settings.saveFolder = originalFolder
         if originalFolder == AppSettings.downloadsFolder { UserDefaults.standard.removeObject(forKey: "saveFolder") }
@@ -1017,6 +1027,19 @@ struct SelfCheck {
         check(sizes.allSatisfy { size in // the self-check runs from the repo root
             (try? Data(contentsOf: URL(fileURLWithPath: "Shortty/Resources/Assets.xcassets/AppIcon.appiconset/\(size.0).png"))).flatMap { NSBitmapImageRep(data: $0) }?.pixelsWide == size.1
         }, "all 10 app icon PNGs at the right size")
+
+        // MARK: Regular app while a window is open
+        // The editor puts Shortty in the Dock and ⌘Tab (its own menu bar, so ⌘, opens Settings); closing it goes back
+        // to the menu bar only. Last, because the observers stay for the rest of the run.
+        NSApp.windows.filter { $0 !== editorWindow && AppPresence.isAppWindow($0) }.forEach { $0.orderOut(nil) } // earlier checks' windows
+        AppPresence.start()
+        editor.show(image)
+        spin(1.5)
+        check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
+              "an open editor makes Shortty a regular app and keeps keyboard focus (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        check(editor.handle(key("w", kVK_ANSI_W, in: editorWindow, flags: .command)) && !editorWindow.isVisible, "⌘W closes the editor")
+        spin(0.3)
+        check(NSApp.activationPolicy() == .accessory, "closing the last window leaves only the menu bar icon")
 
         finish()
     }

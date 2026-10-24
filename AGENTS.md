@@ -27,7 +27,7 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 
 | Path | What lives there |
 |---|---|
-| `Shortty/App` | Entry point and menu bar menu, `AppDelegate`, `AppSettings` (UserDefaults-backed, `@Observable`) |
+| `Shortty/App` | Entry point and menu bar menu, `AppDelegate` + `AppPresence` (regular app while a titled window is open, menu bar only otherwise), `AppSettings` (UserDefaults-backed, `@Observable`) |
 | `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`), `CaptureHistory` (last 20 captures in Caches, each with its saved edits as `<capture>.json`; reopen and the history strip), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
 | `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
@@ -81,6 +81,6 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
 - **Editor window.** It's a non-activating `NSPanel` shown with `orderFrontRegardless`. Since macOS 14 a background
   app can't activate itself, so a normal window opened after a capture lands behind the frontmost app. Never call
   `NSApp.activate()` before showing it: a half-granted activation makes Shortty "foreground" and the window server
-  then refuses the panel keyboard focus.
+  then refuses the panel keyboard focus. `AppPresence` activates (and turns Shortty into a regular app) only after the panel is key.
 - **Self-check side effects.** Never touch the real clipboard or Downloads in checks (`model.textPasteboard` exists for that).
 - **Signing.** Keep `CODE_SIGN_IDENTITY: "Shortty Dev"` in `project.yml`. Ad-hoc signing makes macOS re-ask for Screen Recording after every build.

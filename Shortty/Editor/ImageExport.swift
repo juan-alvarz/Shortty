@@ -3,6 +3,11 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum ImageExport {
+    static let copiedNotice = "Copied to clipboard"
+
+    /// "Saved to ~/Downloads/shortty-….png"
+    static func savedNotice(_ url: URL) -> String { "Saved to " + (url.path as NSString).abbreviatingWithTildeInPath }
+
     static func copy(_ image: CGImage) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()

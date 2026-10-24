@@ -93,8 +93,10 @@ During a countdown the seconds show next to the menu bar icon, and the menu has 
 
 ## Edit
 
-Every capture opens in one editor window. Everything you draw stays editable: select it to move it, resize it from
-its handles, recolor it or change its thickness.
+Every capture opens in one editor window. While it's open, Shortty is a regular app: it's in the Dock and ⌘Tab, and
+⌘, opens its Settings. Close the window and Shortty goes back to the menu bar, still running. Everything you draw stays
+editable: select it to move it, resize it from its handles, recolor it or change its thickness. Copy and Save close the
+editor and say where the picture went.
 
 | Tool | What it does |
 |---|---|
@@ -179,6 +181,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | `⌘V` | Paste a picture from the clipboard into the canvas |
 | `⌘` + scroll, pinch, `⌘+` `⌘-` | Zoom around the pointer · `⌘0` fits |
 | Esc | Back to the Select tool; on Select, deselect. Press it twice quickly to close the editor |
+| `⌘W` | Close the editor. Shortty keeps running in the menu bar |
 
 ### Settings
 

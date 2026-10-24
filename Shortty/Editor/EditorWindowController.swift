@@ -32,7 +32,11 @@ final class EditorWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: EditorView(model: model))
 
-        model.onFinish = { [weak self] in self?.close() }
+        model.onFinish = { [weak self] notice in // the window goes away, so the notice floats where it was
+            guard let self, let frame = self.window?.frame else { return }
+            close()
+            FloatingToast.show(notice, near: frame)
+        }
         model.onInsertCapture = { [weak self] in self?.captureAndInsert() }
         model.onPin = { [weak self] image in
             PinWindow.pin(image, near: self?.window?.frame)
@@ -86,9 +90,9 @@ final class EditorWindowController: NSWindowController {
         }
     }
 
-    /// Shows the panel on top with keyboard focus. Deliberately no `NSApp.activate()`: a non-activating panel can only
-    /// take focus while Shortty is a background process, and a half-granted activation makes it "foreground" without
-    /// focus (WindowServer: "a foreground app can't steal keyboard focus").
+    /// Shows the panel on top with keyboard focus. Deliberately no `NSApp.activate()` before it: a non-activating panel
+    /// can only take focus while Shortty is a background process, and a half-granted activation makes it "foreground"
+    /// without focus (WindowServer: "a foreground app can't steal keyboard focus"). `AppPresence` activates afterwards.
     private func present() {
         guard let window else { return }
         window.makeKeyAndOrderFront(nil)
@@ -160,6 +164,7 @@ final class EditorWindowController: NSWindowController {
             case "c" where model.tool == .recognizeText && model.hasTextSelection: model.copySelectedText?()
             case "c": model.copy()
             case "s": model.save()
+            case "w": close()
             case "v": if model.insertImages(from: .general) == 0 { model.toast = "No picture on the clipboard" }
             case "z": flags.contains(.shift) ? model.redo() : model.undo()
             case "d": model.duplicateSelection()

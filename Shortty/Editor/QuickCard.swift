@@ -46,7 +46,7 @@ private struct QuickCardView: View {
                 .overlay(DragSource(onClick: edit) { image })
                 .help("Click to edit, or drag into any app")
             HStack(spacing: 6) {
-                PanelButton(title: "Copy") { finish("Copied") { ImageExport.copy(image) } }
+                PanelButton(title: "Copy") { finish(ImageExport.copiedNotice) { ImageExport.copy(image) } }
                 PanelButton(title: "Save") { save() }
                 ToolButton(icon: .pin, tooltip: nil) { pin() }
                     .help("Pin to screen")
@@ -79,10 +79,9 @@ private struct QuickCardView: View {
     }
 
     private func save() {
-        let folder = AppSettings.shared.saveFolder
         do {
-            try ImageExport.save(image, to: folder)
-            finish("Saved to \(folder.lastPathComponent)") {}
+            let url = try ImageExport.save(image, to: AppSettings.shared.saveFolder)
+            finish(ImageExport.savedNotice(url)) {}
         } catch {
             finish("Couldn't save: \(error.localizedDescription)") {}
         }

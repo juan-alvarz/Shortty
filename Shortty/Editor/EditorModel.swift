@@ -71,8 +71,8 @@ final class EditorModel {
     var zoom: CGFloat?
     /// What the canvas actually shows right now (fit or explicit); the toolbar reads this.
     var displayedZoom: CGFloat = 1
-    /// Called after copy/save so the window can close.
-    var onFinish: (() -> Void)?
+    /// Called after copy/save with what to tell the user, so the window can close and say it.
+    var onFinish: ((_ notice: String) -> Void)?
 
     /// What undo restores: the annotations and the crop.
     private struct Snapshot {
@@ -422,14 +422,14 @@ final class EditorModel {
     func copy() {
         endEditing()
         ImageExport.copy(rendered)
-        onFinish?()
+        onFinish?(ImageExport.copiedNotice)
     }
 
     func save() {
         endEditing()
         do {
-            try ImageExport.save(rendered, to: AppSettings.shared.saveFolder)
-            onFinish?()
+            let url = try ImageExport.save(rendered, to: AppSettings.shared.saveFolder)
+            onFinish?(ImageExport.savedNotice(url))
         } catch {
             NSAlert(error: error).runModal()
         }
