@@ -10,6 +10,7 @@ Capture, mark up and share in seconds, in the spirit of [Shottr](https://shottr.
 [![Latest release](https://img.shields.io/github/v/release/juan-alvarz/Shortty?label=download&color=FF6B3D)](https://github.com/juan-alvarz/Shortty/releases/latest)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
+[![MIT License](https://img.shields.io/badge/license-MIT-2F81F7)](LICENSE)
 
 [Download](https://github.com/juan-alvarz/Shortty/releases/latest) · [How to install](#how-to-install) · [Features](#features) · [Customization](#customization)
 
@@ -199,3 +200,7 @@ The app icon's source is `Design/AppIcon.svg`. After editing it, or replacing it
 ```bash
 swift Scripts/make-icon.swift && Scripts/install.sh
 ```
+
+## License
+
+Shortty is free and open source under the [MIT License](LICENSE).
