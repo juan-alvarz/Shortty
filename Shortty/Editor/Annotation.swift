@@ -1,9 +1,11 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Something drawn on the screenshot, in image pixel coordinates (origin top-left).
+/// Codable so a capture's edits can be saved next to it in the history and reopened later.
 struct Annotation: Identifiable, Equatable {
-    enum Shape: Equatable {
+    enum Shape: Equatable, Codable {
         case stroke([CGPoint])
         case rectangle(CGRect)
         case ellipse(CGRect)
@@ -18,7 +20,7 @@ struct Annotation: Identifiable, Equatable {
         /// `source` shown enlarged inside `target`; zoom = target size / source size.
         case magnifier(source: CGRect, target: CGRect, shape: AreaShape)
         /// A pasted, dropped or newly captured picture, drawn into `rect`.
-        case image(rect: CGRect, image: CGImage)
+        case image(rect: CGRect, image: Picture)
         /// A numbered badge. Its number is its position among the steps (so deleting one renumbers the rest);
         /// the diameter is `width`.
         case step(center: CGPoint)
@@ -188,6 +190,54 @@ private func distance(_ point: CGPoint, toSegment a: CGPoint, _ b: CGPoint) -> C
     return hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy))
 }
 
+extension Annotation: Codable {
+    private enum CodingKeys: String, CodingKey { case shape, color, width }
+
+    /// The id isn't saved: a reopened annotation gets a new one.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(shape: try values.decode(Shape.self, forKey: .shape), color: Color(hex: try values.decode(String.self, forKey: .color)) ?? Theme.accent,
+                  width: try values.decode(CGFloat.self, forKey: .width))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(shape, forKey: .shape)
+        try values.encode(color.hex, forKey: .color)
+        try values.encode(width, forKey: .width)
+    }
+}
+
+/// An inserted picture. Saved as PNG data.
+struct Picture: Equatable, Codable {
+    let cgImage: CGImage
+
+    init(_ cgImage: CGImage) { self.cgImage = cgImage }
+
+    static func == (a: Picture, b: Picture) -> Bool { a.cgImage === b.cgImage }
+
+    init(from decoder: Decoder) throws {
+        let data = try decoder.singleValueContainer().decode(Data.self)
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Not a picture"))
+        }
+        cgImage = image
+    }
+
+    func encode(to encoder: Encoder) throws {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+            throw EncodingError.invalidValue(cgImage, .init(codingPath: encoder.codingPath, debugDescription: "Can't write PNG"))
+        }
+        CGImageDestinationAddImage(destination, cgImage, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw EncodingError.invalidValue(cgImage, .init(codingPath: encoder.codingPath, debugDescription: "Can't write PNG"))
+        }
+        var value = encoder.singleValueContainer()
+        try value.encode(data as Data)
+    }
+}
+
 extension CGContext {
     /// Draws annotations over `image`; the caller sets up a top-left-origin image pixel space.
     /// Order: blur/erase, then the spotlight dim, then everything else in list order (so arrows and text stay bright).
@@ -251,7 +301,7 @@ extension CGContext {
             case .image(let rect, let picture):
                 saveGState()
                 interpolationQuality = .high
-                drawUpright(picture, in: rect.standardized)
+                drawUpright(picture.cgImage, in: rect.standardized)
                 restoreGState()
             case .step(let center):
                 drawStep(stepNumbers[annotation.id] ?? 0, at: center, diameter: annotation.width, color: annotation.color)

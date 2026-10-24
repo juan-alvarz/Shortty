@@ -810,14 +810,17 @@ struct SelfCheck {
         check(editor.handle(vKey) && editor.model.tool == .select, "after typing, V switches to Select")
         check(editor.handle(key("m", kVK_ANSI_M, in: editorWindow)) && editor.model.tool == .magnifier, "M picks the magnifier")
 
-        // Esc clears the selection but never closes the editor
+        // One Esc clears the selection but never closes the editor; two in quick succession close it
         let escKey = key("\u{1b}", kVK_Escape, in: editorWindow)
+        let slowly = NSEvent.doubleClickInterval + 0.15
         editor.model.select(typing.id)
         check(editor.model.tool == .magnifier && editor.handle(escKey) && editor.model.tool == .select && editor.model.selection == typing.id,
               "Esc with a tool active switches to Select, keeps the selection")
+        spin(slowly)
         check(editor.handle(escKey) && editor.model.selection == nil && editorWindow.isVisible, "Esc on Select clears the selection, window stays")
-        check(editor.handle(escKey) && editorWindow.isVisible, "Esc again does not close the window")
-        editor.close()
+        spin(slowly)
+        check(editor.handle(escKey) && editorWindow.isVisible, "a single Esc never closes the window")
+        check(editor.handle(escKey) && !editorWindow.isVisible, "a quick second Esc closes it")
 
         // Focus without activation: this check process is a background app, like Shortty right after a capture
         editor.show(fixture())
@@ -891,6 +894,40 @@ struct SelfCheck {
         let doomed = history.items[3]
         history.remove(doomed)
         check(history.items.count == CaptureHistory.limit - 1 && !FileManager.default.fileExists(atPath: doomed.path), "× deletes one capture's file")
+
+        // Edits are saved next to each capture and come back when it's reopened
+        func hasEdits(_ capture: URL) -> Bool { FileManager.default.fileExists(atPath: CaptureHistory.editsURL(for: capture).path) }
+        let editsModel = EditorModel(image: image)
+        let first = history.items[0], second = history.items[1]
+        editsModel.load(CGImage.load(from: first)!, from: first)
+        let savedArrow = Annotation(shape: .arrow(start: CGPoint(x: 5, y: 5), end: CGPoint(x: 30, y: 20), bend: 4, style: .double),
+                                    color: Color(rgb: [255, 0, 0]), width: 6)
+        let savedCallout = Annotation(shape: .text(origin: CGPoint(x: 2, y: 2), string: "Saved", style: .callout, pointer: CGPoint(x: 20, y: 25)),
+                                      color: Theme.accent, width: 28)
+        editsModel.annotations = [savedArrow, savedCallout]
+        editsModel.insertImage(solid(10, 8, 0, 1, 0))
+        editsModel.load(CGImage.load(from: second)!, from: second)
+        check(hasEdits(first) && editsModel.annotations.isEmpty, "opening another capture saves the first one's edits")
+        let previewFile = CaptureHistory.previewURL(for: first)
+        check(CGImage.load(from: previewFile).map { max($0.width, $0.height) <= 240 } == true && CaptureHistory(folder: historyFolder).items.count == history.items.count,
+              "a small preview with the edits is saved for the strip, and isn't listed as a capture")
+        editsModel.load(CGImage.load(from: first)!, from: first)
+        let restored = editsModel.annotations
+        check(restored.count == 3 && restored[0].shape == savedArrow.shape && restored[0].color.hex == savedArrow.color.hex && restored[0].width == 6
+              && restored[1].shape == savedCallout.shape, "reopening it brings the edits back, still editable")
+        if case .image(let rect, let picture)? = restored.last?.shape {
+            check(picture.cgImage.width == 10 && rect.width > 0, "inserted pictures come back too")
+        } else {
+            check(false, "inserted pictures come back too")
+        }
+        editsModel.annotations = []
+        editsModel.saveEdits()
+        check(!hasEdits(first) && !FileManager.default.fileExists(atPath: previewFile.path), "with nothing drawn, no edits file or preview is kept")
+        editsModel.annotations = [savedArrow]
+        spin(0.8)
+        check(hasEdits(first), "edits are saved on their own shortly after a change")
+        history.remove(first)
+        check(!hasEdits(first) && !FileManager.default.fileExists(atPath: previewFile.path), "deleting a capture deletes its edits and preview")
 
         // MARK: Layouts, with the history strip (snapshots show the bars)
         let settings = AppSettings.shared

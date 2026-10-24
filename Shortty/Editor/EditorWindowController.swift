@@ -127,12 +127,24 @@ final class EditorWindowController: NSWindowController {
         model.showsShortcutHints = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
     }
 
+    /// When Esc was last pressed: a second press within the double-click time closes the editor.
+    private var lastEscape: Date?
+
+    /// The capture's edits are on disk before the window goes away (they also save on their own as you work).
+    override func close() {
+        model.saveEdits()
+        super.close()
+    }
+
     /// Editor shortcuts. Returns false to let the event through (e.g. to the text being typed). Internal for the self-check.
     func handle(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        let isEscape = Int(event.keyCode) == kVK_Escape
+        let doubleEscape = isEscape && lastEscape.map { Date.now.timeIntervalSince($0) < NSEvent.doubleClickInterval } == true
+        lastEscape = isEscape && !doubleEscape ? .now : nil
 
-        // While typing text, keys go to the text. ⌘S still saves; ⌘C copies the image unless text is selected.
+        // While typing text, keys go to the text (Esc finishes it). ⌘S still saves; ⌘C copies the image unless text is selected.
         if model.editingID != nil {
             let hasTextSelection = ((window?.firstResponder as? NSTextView)?.selectedRange().length ?? 0) > 0
             switch (flags.contains(.command), key) {
@@ -164,8 +176,10 @@ final class EditorWindowController: NSWindowController {
         let hasSelection = model.selection != nil
         let step: CGFloat = flags.contains(.shift) ? 10 : 1
         switch Int(event.keyCode) {
+        case kVK_Escape where doubleEscape:
+            close()
         case kVK_Escape:
-            // Back to the plain pointer: a tool → Select; on Select, deselect. Never closes the window
+            // Back to the plain pointer: a tool → Select; on Select, deselect. Once never closes the window
             // (consumed, so the panel doesn't treat it as cancel either).
             if model.tool != .select { model.tool = .select } else { model.select(nil) }
         case kVK_Return where model.tool == .crop, kVK_ANSI_KeypadEnter where model.tool == .crop:

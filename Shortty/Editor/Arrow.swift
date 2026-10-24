@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation // String.capitalized
 
 /// Shottr's four arrow looks: hollow outline, solid tapered, thin line, double-headed line.
-enum ArrowStyle: String, CaseIterable {
+enum ArrowStyle: String, CaseIterable, Codable {
     case outline, solid, line, double
 
     var title: String { rawValue.capitalized }

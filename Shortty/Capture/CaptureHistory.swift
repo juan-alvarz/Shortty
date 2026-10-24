@@ -20,7 +20,7 @@ final class CaptureHistory {
         self.folder = folder
         // Built from the folder (not the listing's own URLs, which may spell the path differently, e.g. /private/var) so they compare equal.
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        items = names.filter { $0.hasSuffix(".png") }.sorted(by: >).map { folder.appendingPathComponent($0) }
+        items = names.filter { $0.hasSuffix(".png") && !$0.hasSuffix(".preview.png") }.sorted(by: >).map { folder.appendingPathComponent($0) }
     }
 
     var latest: URL? { items.first }
@@ -41,12 +41,50 @@ final class CaptureHistory {
 
     func remove(_ url: URL) {
         try? FileManager.default.removeItem(at: url)
+        try? FileManager.default.removeItem(at: Self.editsURL(for: url))
+        try? FileManager.default.removeItem(at: Self.previewURL(for: url))
         items.removeAll { $0 == url }
     }
 
     func removeAll() {
-        items.forEach { try? FileManager.default.removeItem(at: $0) }
-        items = []
+        items.forEach { remove($0) }
+    }
+
+    // MARK: Edits (annotations and crop), saved next to each capture
+
+    /// `<capture>.json` next to `<capture>.png`.
+    static func editsURL(for capture: URL) -> URL { capture.deletingPathExtension().appendingPathExtension("json") }
+    /// `<capture>.preview.png`: a small picture of the capture with its edits, for the history strip.
+    static func previewURL(for capture: URL) -> URL { capture.deletingPathExtension().appendingPathExtension("preview.png") }
+
+    /// Saves a capture's edits and a preview of how it looks with them; with nothing left to keep, removes both.
+    static func saveEdits(_ edits: SavedEdits, for capture: URL, preview: () -> CGImage) {
+        let url = editsURL(for: capture)
+        guard !edits.annotations.isEmpty || edits.crop != nil else {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: previewURL(for: capture))
+            return
+        }
+        guard FileManager.default.fileExists(atPath: capture.path) else { return } // the capture was deleted meanwhile
+        try? JSONEncoder().encode(edits).write(to: url, options: .atomic)
+        writePreview(preview(), to: previewURL(for: capture))
+    }
+
+    /// Scaled down to at most 240 px, so the strip loads it fast.
+    private static func writePreview(_ image: CGImage, to url: URL) {
+        let scale = min(1, 240 / CGFloat(max(image.width, image.height, 1)))
+        let width = max(1, Int((CGFloat(image.width) * scale).rounded())), height = max(1, Int((CGFloat(image.height) * scale).rounded()))
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let small = context.makeImage() else { return }
+        try? ImageExport.writePNG(small, to: url)
+    }
+
+    static func loadEdits(for capture: URL) -> SavedEdits? {
+        (try? Data(contentsOf: editsURL(for: capture))).flatMap { try? JSONDecoder().decode(SavedEdits.self, from: $0) }
     }
 
     /// When the file was captured (from its name), for the strip's labels.
@@ -79,4 +117,11 @@ final class CaptureHistory {
         let date = max(Date.now, newest.addingTimeInterval(0.0015)) // the name keeps whole milliseconds
         return folder.appendingPathComponent("\(Self.nameFormatter.string(from: date)).png")
     }
+}
+
+/// What's kept of a capture's edits so they come back when it's reopened: everything drawn, and the crop.
+/// The backdrop isn't: it's a choice that already carries over to every capture.
+struct SavedEdits: Codable {
+    var annotations: [Annotation]
+    var crop: CGRect?
 }

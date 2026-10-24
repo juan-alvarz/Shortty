@@ -1,7 +1,7 @@
 import AppKit
 
 /// Rectangle or ellipse: the spotlight's hole and the magnifier's lens.
-enum AreaShape: CaseIterable {
+enum AreaShape: CaseIterable, Codable {
     case rectangle, ellipse
 
     var icon: IconKind { self == .rectangle ? .rectangle : .ellipse }
@@ -30,7 +30,7 @@ enum AreaShape: CaseIterable {
 }
 
 /// Shottr's four ways to hide things.
-enum RedactStyle: String, CaseIterable {
+enum RedactStyle: String, CaseIterable, Codable {
     case blur = "Blur", blurText = "Blur Text", erase = "Erase", eraseText = "Erase Text"
 
     var title: String { rawValue }

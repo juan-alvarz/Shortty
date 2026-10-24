@@ -426,7 +426,7 @@ struct HistoryStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(history.items, id: \.self) { url in
-                        HistoryThumb(url: url, current: url == model.sourceFile) {
+                        HistoryThumb(url: url, current: url == model.sourceFile, revision: url == model.sourceFile ? model.savedRevision : 0) {
                             guard let image = CGImage.load(from: url) else { return history.remove(url) }
                             model.load(image, from: url)
                         } remove: {
@@ -462,9 +462,11 @@ struct HistoryStrip: View {
     }
 }
 
+/// Shows the capture with its edits (its saved preview) when there are any; `revision` reloads it after a save.
 private struct HistoryThumb: View {
     let url: URL
     let current: Bool
+    let revision: Int
     let open: () -> Void
     let remove: () -> Void
     @State private var thumbnail: CGImage?
@@ -503,8 +505,11 @@ private struct HistoryThumb: View {
         }
         .onHover { hovering = $0 }
         .help("Click to open, drag into any app")
-        .task(id: url) {
-            thumbnail = await Task.detached(priority: .utility) { CaptureHistory.thumbnail(of: url, maxPixels: 200) }.value
+        .task(id: "\(url.path)#\(revision)") {
+            let preview = CaptureHistory.previewURL(for: url)
+            thumbnail = await Task.detached(priority: .utility) {
+                CaptureHistory.thumbnail(of: FileManager.default.fileExists(atPath: preview.path) ? preview : url, maxPixels: 200)
+            }.value
         }
     }
 

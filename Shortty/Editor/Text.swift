@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Text looks: a callout (filled box with a pointer), a label (filled box), or plain letters.
-enum TextStyle: String, CaseIterable {
+enum TextStyle: String, CaseIterable, Codable {
     case callout = "Callout", label = "Label", plain = "Text"
 
     var title: String { rawValue }

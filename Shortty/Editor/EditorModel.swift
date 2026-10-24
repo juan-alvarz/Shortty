@@ -17,7 +17,7 @@ final class EditorModel {
     /// Set by the canvas; nil while nothing is selected, a drag is in progress, or text is being typed.
     var selectionFrame: CGRect?
     /// Bottom to top. Mutations made outside the methods below must call `recordChange(from:)` to be undoable.
-    var annotations: [Annotation] = []
+    var annotations: [Annotation] = [] { didSet { scheduleSave() } }
     var selection: Annotation.ID?
     var tool: Tool = .pencil {
         didSet {
@@ -29,7 +29,7 @@ final class EditorModel {
     /// Crop tool: the box being adjusted, not applied yet (image px).
     var cropBox: CGRect?
     /// The applied crop (image px): the output is just this area. Non-destructive: Reset or undo brings the rest back.
-    private(set) var crop: CGRect?
+    private(set) var crop: CGRect? { didSet { scheduleSave() } }
     /// Color for new annotations; picking one also recolors the selection.
     private(set) var color = Theme.accent
     /// Style for new arrows; changing it also updates a selected arrow.
@@ -87,20 +87,51 @@ final class EditorModel {
 
     init(image: CGImage) { self.image = image }
 
-    /// Replaces the image for a new capture and resets edits.
+    /// Replaces the image for a new capture. A capture from the history gets back the edits saved with it.
     func load(_ image: CGImage, from file: URL? = nil) {
+        saveEdits() // the capture being replaced keeps its edits
         self.image = image
         sourceFile = file
         hasImage = true
-        annotations = []
+        let saved = file.flatMap(CaptureHistory.loadEdits(for:))
+        annotations = saved?.annotations ?? []
         selection = nil
-        crop = nil
+        crop = saved?.crop
         cropBox = nil
         recognizedText = nil
         hasTextSelection = false
         undoStack = []
         redoStack = []
         zoom = nil
+        pendingSave?.cancel() // just restored: nothing new to write
+    }
+
+    // MARK: Saving edits (captures from the history)
+
+    @ObservationIgnored private var pendingSave: Task<Void, Never>?
+
+    /// Keeps a history capture's edits on disk as you work, half a second after the last change,
+    /// so opening another capture (or quitting) loses nothing.
+    private func scheduleSave() {
+        guard sourceFile != nil else { return }
+        pendingSave?.cancel()
+        pendingSave = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            if !Task.isCancelled { self?.saveEdits() }
+        }
+    }
+
+    /// Bumped after each save, so the history strip reloads this capture's preview.
+    private(set) var savedRevision = 0
+
+    /// Writes the current capture's edits right away (internal for the self-check).
+    func saveEdits() {
+        pendingSave?.cancel()
+        pendingSave = nil
+        guard let sourceFile else { return }
+        // ponytail: renders at full size, then scales down; fine at one render per half second of editing.
+        CaptureHistory.saveEdits(SavedEdits(annotations: annotations, crop: crop), for: sourceFile) { image.rendering(annotations, crop: crop) }
+        savedRevision += 1
     }
 
     /// The crop when there is one, else the image plus anything drawn past its edges.
@@ -366,7 +397,7 @@ final class EditorModel {
         let size = CGSize(width: (CGFloat(picture.width) * scale).rounded(), height: (CGFloat(picture.height) * scale).rounded())
         let center = point ?? CGPoint(x: image.bounds.midX, y: image.bounds.midY)
         let annotation = Annotation(shape: .image(rect: CGRect(x: center.x - size.width / 2, y: center.y - size.height / 2,
-                                                               width: size.width, height: size.height), image: picture),
+                                                               width: size.width, height: size.height), image: Picture(picture)),
                                     color: color, width: 0)
         edit { $0.append(annotation) }
         tool = .select

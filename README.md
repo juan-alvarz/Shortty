@@ -59,7 +59,7 @@ Hold `⌘` to see each tool's key on its button.
 | `⌘C` / `⌘S` | Copy / save as `shortty-<timestamp>-image.png` in your save folder (Downloads unless you pick another) |
 | `⌘V` | Paste a picture from the clipboard into the canvas |
 | `⌘` + scroll, pinch, `⌘+` `⌘-` | Zoom around the pointer · `⌘0` fits |
-| Esc | Back to the Select tool (finishing any typing); on Select, deselect. Never closes the window |
+| Esc | Back to the Select tool (finishing any typing); on Select, deselect. Press it twice quickly to close the editor |
 
 Everything you draw stays editable. Select it to move it, resize it from its handles, recolor it, or change its
 thickness. Arrows have start, end and middle handles; drag the middle one to curve the arrow. With a drawing tool
@@ -88,8 +88,10 @@ you want and press ⌘C (or Copy in the panel). Copy All takes every word. On-de
 Send to back and Delete. Bring to front and Send to back set what covers what, for example a picture behind the
 arrows that point at it.
 
-**Recent captures**: a strip along the bottom of the editor shows the last 20 captures. Click one to open it, drag
-one into any app, hover and click × to delete one, or use the trash to delete them all. Settings can hide the strip.
+**Recent captures**: a slim bar along the bottom of the editor opens into the last 20 captures. Click one to open it,
+drag one into any app, hover and click × to delete one, or use the trash to delete them all. Each capture keeps its
+edits: whatever you drew (and the crop) is saved as you work, so you can switch between captures, or reopen one
+later, and keep editing where you left off; the thumbnails show them too. Settings can hide the bar.
 
 **Drag and drop**: drag the handle next to Save into any app or a website's upload box. It hands over a temporary
 PNG, so nothing piles up in Downloads.
