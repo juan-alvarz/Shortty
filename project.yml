@@ -19,6 +19,8 @@ targets:
     info:
       path: Shortty/Resources/Info.plist
       properties:
+        CFBundleShortVersionString: "1.1.0" # the release version; bump with each GitHub release
+        CFBundleVersion: "2"
         LSUIElement: true
         LSApplicationCategoryType: public.app-category.utilities
         CFBundleDocumentTypes:
