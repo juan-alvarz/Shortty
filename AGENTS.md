@@ -34,6 +34,7 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
 | `Scripts` | install, signing cert, icon renderer, self-check |
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
+| `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
 
 ## Recipes
 
