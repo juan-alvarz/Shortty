@@ -1027,6 +1027,19 @@ struct SelfCheck {
         check(sizes.allSatisfy { size in // the self-check runs from the repo root
             (try? Data(contentsOf: URL(fileURLWithPath: "Shortty/Resources/Assets.xcassets/AppIcon.appiconset/\(size.0).png"))).flatMap { NSBitmapImageRep(data: $0) }?.pixelsWide == size.1
         }, "all 10 app icon PNGs at the right size")
+        let barIcon = Icon.menuBar()
+        check(barIcon.isTemplate && barIcon.size == NSSize(width: 18, height: 18) && Icon.menuBar(countdown: 3).size.width > 18,
+              "the menu bar icon is an 18 pt template image, wider while counting down")
+        if let snapshotDir { // 8× on white, to look at the outline
+            let big = NSImage(size: NSSize(width: 144, height: 144), flipped: false) { rect in
+                NSColor.white.setFill()
+                rect.fill()
+                barIcon.draw(in: rect)
+                return true
+            }
+            try? big.tiffRepresentation.flatMap { NSBitmapImageRep(data: $0)?.representation(using: .png, properties: [:]) }?
+                .write(to: URL(fileURLWithPath: "\(snapshotDir)/menubar-icon.png"))
+        }
 
         // MARK: Regular app while a window is open
         // The editor puts Shortty in the Dock and ⌘Tab (its own menu bar, so ⌘, opens Settings); closing it goes back

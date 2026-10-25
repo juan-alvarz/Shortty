@@ -180,7 +180,8 @@ struct Icon: View {
 }
 
 extension Icon {
-    /// Menu bar template image: viewfinder corners around a dot, plus the lazy-shot seconds when counting down.
+    /// Menu bar template image: the app icon's cat (ears joined across the head, cheeks as the bottom corners),
+    /// plus the lazy-shot seconds when counting down.
     static func menuBar(countdown: Int? = nil) -> NSImage {
         let text = countdown.map { "\($0)" as NSString }
         let attributes: [NSAttributedString.Key: Any] = [
@@ -191,17 +192,25 @@ extension Icon {
         let width = 18 + (text == nil ? 0 : ceil(textSize.width) + 3)
 
         let image = NSImage(size: NSSize(width: width, height: 18), flipped: true) { _ in
+            // On the 1024 grid of Design/AppIcon.svg, then scaled so the 548-wide mark fills 18 pt.
             let path = NSBezierPath()
+            path.move(to: NSPoint(x: 238, y: 500))
+            path.line(to: NSPoint(x: 266, y: 250))
+            path.line(to: NSPoint(x: 414, y: 368))
+            path.curve(to: NSPoint(x: 610, y: 368), controlPoint: NSPoint(x: 512, y: 334))
+            path.line(to: NSPoint(x: 758, y: 250))
+            path.line(to: NSPoint(x: 786, y: 500))
+            for x in [{ (v: CGFloat) in v }, { (v: CGFloat) in 1024 - v }] { // left cheek, then the mirrored right one
+                path.move(to: NSPoint(x: x(238), y: 624))
+                path.line(to: NSPoint(x: x(238), y: 672))
+                path.curve(to: NSPoint(x: x(362), y: 790), controlPoint1: NSPoint(x: x(238), y: 742), controlPoint2: NSPoint(x: x(290), y: 790))
+                path.line(to: NSPoint(x: x(420), y: 790))
+            }
+            let scale: CGFloat = 15.2 / 548
+            path.transform(using: AffineTransform(m11: scale, m12: 0, m21: 0, m22: scale, tX: 1.4 - 238 * scale, tY: 1.5 - 250 * scale))
             path.lineWidth = 1.6
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
-            let edge: CGFloat = 2.5, far: CGFloat = 15.5, arm: CGFloat = 4
-            for (x, y, dx, dy) in [(edge, edge, 1.0, 1.0), (far, edge, -1.0, 1.0), (far, far, -1.0, -1.0), (edge, far, 1.0, -1.0)] {
-                path.move(to: NSPoint(x: x, y: y + dy * arm))
-                path.line(to: NSPoint(x: x, y: y))
-                path.line(to: NSPoint(x: x + dx * arm, y: y))
-            }
-            path.appendOval(in: NSRect(x: 6.5, y: 6.5, width: 5, height: 5))
             NSColor.black.setStroke()
             path.stroke()
             text?.draw(at: NSPoint(x: 21, y: (18 - textSize.height) / 2), withAttributes: attributes)

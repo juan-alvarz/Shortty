@@ -1,84 +1,109 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Shortty: a cat's head drawn with the viewfinder's corners, glowing like neon.
+       Plain shapes only (no SVG filters): AppKit's renderer, used by Scripts/make-icon.swift, ignores them.
+       The glow and the shadow are stacks of faint, widening copies instead. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3a3a40"/>
-      <stop offset="1" stop-color="#1b1b1f"/>
+      <stop offset="0" stop-color="#303037"/>
+      <stop offset="1" stop-color="#151518"/>
     </linearGradient>
-    <linearGradient id="fur" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6e655e"/>
-      <stop offset="0.55" stop-color="#a99d92"/>
-      <stop offset="1" stop-color="#d3c9bf"/>
+    <linearGradient id="neon" gradientUnits="userSpaceOnUse" x1="0" y1="220" x2="0" y2="820">
+      <stop offset="0" stop-color="#FF8F55"/>
+      <stop offset="1" stop-color="#FF5A2C"/>
     </linearGradient>
-    <linearGradient id="ear" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5d554f"/>
-      <stop offset="1" stop-color="#8f847b"/>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.12"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0"/>
     </linearGradient>
   </defs>
+
+  <!-- soft shadow under the body -->
+  <rect x="82" y="96" width="860" height="860" rx="203" fill="#000" fill-opacity="0.045"/>
+  <rect x="85" y="98" width="854" height="854" rx="200" fill="#000" fill-opacity="0.045"/>
+  <rect x="88" y="100" width="848" height="848" rx="197" fill="#000" fill-opacity="0.045"/>
+  <rect x="91" y="102" width="842" height="842" rx="194" fill="#000" fill-opacity="0.045"/>
+  <rect x="94" y="104" width="836" height="836" rx="191" fill="#000" fill-opacity="0.045"/>
+  <rect x="97" y="106" width="830" height="830" rx="188" fill="#000" fill-opacity="0.045"/>
 
   <!-- macOS icon body: 824pt rounded square on the 1024 grid -->
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
 
-  <!-- viewfinder corners -->
-  <g fill="none" stroke="#FF6B3D" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M196 306 V196 H306"/>
-    <path d="M718 196 H828 V306"/>
-    <path d="M828 718 V828 H718"/>
-    <path d="M306 828 H196 V718"/>
+  <!-- glow -->
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="140" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="132" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="124" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="116" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="108" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="100" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="92" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="84" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="76" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="68" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="60" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <g fill="none" stroke="#FF6B3D" stroke-opacity="0.035" stroke-width="52" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
   </g>
 
-  <!-- ears -->
-  <path d="M350 456 L296 268 Q298 252 314 258 L480 402 Z" fill="url(#ear)" stroke="url(#ear)" stroke-width="16" stroke-linejoin="round"/>
-  <path d="M674 456 L728 268 Q726 252 710 258 L544 402 Z" fill="url(#ear)" stroke="url(#ear)" stroke-width="16" stroke-linejoin="round"/>
-  <path d="M362 430 L326 312 L436 402 Z" fill="#c9968a" opacity="0.75"/>
-  <path d="M662 430 L698 312 L588 402 Z" fill="#c9968a" opacity="0.75"/>
-
-  <!-- head -->
-  <path d="M512 390 C430 390 336 418 314 514 C298 590 322 670 400 722 C438 746 476 756 512 756 C548 756 586 746 624 722 C702 670 726 590 710 514 C688 418 594 390 512 390 Z" fill="url(#fur)"/>
-
-  <!-- tabby forehead stripes -->
-  <g fill="none" stroke="#3a3430" stroke-width="15" stroke-linecap="round">
-    <path d="M512 404 L512 474"/>
-    <path d="M478 408 Q470 440 484 482"/>
-    <path d="M546 408 Q554 440 540 482"/>
-    <path d="M444 420 Q432 452 450 492"/>
-    <path d="M580 420 Q592 452 574 492"/>
+  <!-- the mark: ears joined across the head, cheeks as the bottom corners -->
+  <g fill="none" stroke="url(#neon)" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
+  </g>
+  <!-- bright core of the tube -->
+  <g fill="none" stroke="#FFD2BC" stroke-opacity="0.55" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M238 500 L266 250 L414 368 Q512 334 610 368 L758 250 L786 500"/>
+    <path d="M238 624 V672 C238 742 290 790 362 790 H420"/>
+    <path d="M786 624 V672 C786 742 734 790 662 790 H604"/>
   </g>
 
-  <!-- light nose bridge + muzzle -->
-  <path d="M512 486 C498 530 494 566 492 600 L532 600 C530 566 526 530 512 486 Z" fill="#e4dbd2"/>
-  <path d="M512 574 C468 574 430 610 428 654 C426 704 468 740 512 740 C556 740 598 704 596 654 C594 610 556 574 512 574 Z" fill="#efe8e1"/>
-
-  <!-- cheek stripes -->
-  <g fill="none" stroke="#5a514b" stroke-width="10" stroke-linecap="round">
-    <path d="M334 598 Q364 604 390 622"/>
-    <path d="M332 638 Q360 644 384 662"/>
-    <path d="M690 598 Q660 604 634 622"/>
-    <path d="M692 638 Q664 644 640 662"/>
-  </g>
-
-  <!-- unimpressed green eyes -->
-  <path d="M370 566 C392 540 446 536 472 556 C452 586 398 590 370 566 Z" fill="#8e9d68"/>
-  <path d="M654 566 C632 540 578 536 552 556 C572 586 626 590 654 566 Z" fill="#8e9d68"/>
-  <ellipse cx="428" cy="562" rx="9" ry="17" fill="#1c1a19"/>
-  <ellipse cx="596" cy="562" rx="9" ry="17" fill="#1c1a19"/>
-  <g fill="none" stroke="#2a2624" stroke-width="10" stroke-linecap="round">
-    <path d="M364 562 C390 534 448 530 478 554"/>
-    <path d="M660 562 C634 534 576 530 546 554"/>
-  </g>
-  <circle cx="436" cy="554" r="5" fill="#ffffff" opacity="0.85"/>
-  <circle cx="604" cy="554" r="5" fill="#ffffff" opacity="0.85"/>
-
-  <!-- nose + mouth -->
-  <path d="M486 628 C486 614 538 614 538 628 C538 643 521 655 512 660 C503 655 486 643 486 628 Z" fill="#d38a88"/>
-  <path d="M512 660 L512 678 M512 678 C500 692 482 692 472 682 M512 678 C524 692 542 692 552 682" fill="none" stroke="#4a403b" stroke-width="8" stroke-linecap="round"/>
-
-  <!-- whiskers -->
-  <g fill="none" stroke="#f4efe9" stroke-width="5" stroke-linecap="round" opacity="0.9">
-    <path d="M446 668 Q350 650 252 640"/>
-    <path d="M448 684 Q352 688 258 708"/>
-    <path d="M454 700 Q370 720 284 768"/>
-    <path d="M578 668 Q674 650 772 640"/>
-    <path d="M576 684 Q672 688 766 708"/>
-    <path d="M570 700 Q654 720 740 768"/>
-  </g>
+  <!-- sheen and edge -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#fff" stroke-opacity="0.1" stroke-width="2"/>
 </svg>
