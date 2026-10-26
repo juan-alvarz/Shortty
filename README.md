@@ -93,7 +93,7 @@ During a countdown the seconds show next to the menu bar icon, and the menu has 
 
 ## Edit
 
-Every capture opens in one editor window. While it's open, Shortty is a regular app: it's in the Dock and ⌘Tab, and
+Every capture opens in one editor window (unless Settings → After a capture says otherwise). While it's open, Shortty is a regular app: it's in the Dock and ⌘Tab, and
 ⌘, opens its Settings. Close the window and Shortty goes back to the menu bar, still running. Everything you draw stays
 editable: select it to move it, resize it from its handles, recolor it or change its thickness. Copy and Save close the
 editor and say where the picture went.
@@ -190,7 +190,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | Start Shortty at login | Opens it in the menu bar when you log in. |
 | Play sound when capturing | The capture sound. |
 | Save folder | Where Save writes. Downloads unless you pick another. |
-| After a capture | Open the editor, or show a quick card in the corner of the screen with Copy, Save, Pin and Edit. Drag the card's picture into any app, or click it to edit; it goes away on its own. |
+| After a capture | What to show: the editor, a quick card in the corner of the screen with Copy, Save, Pin and Edit (drag its picture into any app, or click it to edit; it goes away on its own), or nothing but a short notice. Copy and Save also put the capture on the clipboard and in your save folder right away. Out of the box: editor + Copy. |
 | Show recent captures | The bar of recent captures in the editor. Delete All removes them from `~/Library/Caches/com.shortty.Shortty/History`. |
 
 ## Contributing

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// After a capture (Settings → After a capture → Show a quick card): a small card in the corner of the screen with the
+/// After a capture (Settings → After a capture → Show card): a small card in the corner of the screen with the
 /// picture and Copy, Save, Pin and Edit. Drag the picture into any app, or click it to edit. Doesn't take focus from
 /// the app you're in, and goes away on its own unless the pointer is over it. The capture stays in the history.
 enum QuickCard {

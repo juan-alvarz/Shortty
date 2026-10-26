@@ -30,8 +30,17 @@ struct GeneralSettingsView: View {
                 Picker("Layout", selection: $settings.editorLayout) {
                     ForEach(EditorLayout.allCases, id: \.self) { Text($0.title) }
                 }
-                Picker("After a capture", selection: $settings.afterCapture) {
-                    ForEach(AfterCapture.allCases, id: \.self) { Text($0.title) }
+                LabeledContent("After a capture") {
+                    HStack(spacing: 12) {
+                        Picker("Show", selection: $settings.afterCapture) {
+                            ForEach(AfterCapture.allCases, id: \.self) { Text($0.title) }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        Toggle("Copy", isOn: $settings.copyAfterCapture)
+                        Toggle("Save", isOn: $settings.saveAfterCapture)
+                    }
+                    .toggleStyle(.checkbox)
                 }
                 RecentCapturesRow(isOn: $settings.showsHistory)
             }

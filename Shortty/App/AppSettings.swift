@@ -38,9 +38,19 @@ final class AppSettings {
         didSet { defaults.set(editorLayout.rawValue, forKey: "editorLayout") }
     }
 
-    /// What appears right after a capture: the editor, or a small card in the screen corner.
+    /// What appears right after a capture: the editor, a small card in the screen corner, or only a notice.
     var afterCapture: AfterCapture {
         didSet { defaults.set(afterCapture.rawValue, forKey: "afterCapture") }
+    }
+
+    /// Right after a capture, also put it on the clipboard.
+    var copyAfterCapture: Bool {
+        didSet { defaults.set(copyAfterCapture, forKey: "copyAfterCapture") }
+    }
+
+    /// Right after a capture, also save it to `saveFolder`.
+    var saveAfterCapture: Bool {
+        didSet { defaults.set(saveAfterCapture, forKey: "saveAfterCapture") }
     }
 
     /// The strip of recent captures along the bottom of the editor.
@@ -52,6 +62,8 @@ final class AppSettings {
         let stored = UserDefaults.standard
         editorLayout = stored.string(forKey: "editorLayout").flatMap(EditorLayout.init(rawValue:)) ?? .classic
         afterCapture = stored.string(forKey: "afterCapture").flatMap(AfterCapture.init(rawValue:)) ?? .editor
+        copyAfterCapture = stored.object(forKey: "copyAfterCapture") as? Bool ?? true
+        saveAfterCapture = stored.object(forKey: "saveAfterCapture") as? Bool ?? false
         showsHistory = stored.object(forKey: "showsHistory") as? Bool ?? true
         captureSound = stored.object(forKey: "captureSound") as? Bool ?? true
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
@@ -76,12 +88,13 @@ enum EditorLayout: String, CaseIterable {
 }
 
 enum AfterCapture: String, CaseIterable {
-    case editor, card
+    case editor, card, nothing
 
     var title: String {
         switch self {
-        case .editor: "Open the editor"
-        case .card: "Show a quick card"
+        case .editor: "Show editor"
+        case .card: "Show card"
+        case .nothing: "Nothing"
         }
     }
 }

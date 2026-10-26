@@ -55,13 +55,33 @@ final class CaptureController {
         if let image { Self.deliver(image) }
     }
 
-    /// A finished capture (already in the history) goes to the editor, or to the quick card when that's the setting.
-    static func deliver(_ image: CGImage) {
+    /// A finished capture (already in the history): copied and saved right away if those are on, then shown in the
+    /// editor or the quick card. With nothing to show, a notice says what happened. The self-check passes its own pasteboard.
+    static func deliver(_ image: CGImage, pasteboard: NSPasteboard = .general) {
+        let settings = AppSettings.shared
+        var done: [String] = []
+        if settings.copyAfterCapture {
+            ImageExport.copy(image, to: pasteboard)
+            done.append(ImageExport.copiedNotice)
+        }
+        var saveFailed = false
+        if settings.saveAfterCapture {
+            do {
+                done.append(ImageExport.savedNotice(try ImageExport.save(image, to: settings.saveFolder)))
+            } catch {
+                done.append("Couldn't save: \(error.localizedDescription)")
+                saveFailed = true
+            }
+        }
         let file = CaptureHistory.shared.latest
-        if AppSettings.shared.afterCapture == .card {
-            QuickCard.show(image, file: file)
-        } else {
-            EditorWindowController.shared.show(image, file: file)
+        switch settings.afterCapture {
+        case .editor: EditorWindowController.shared.show(image, file: file)
+        case .card: QuickCard.show(image, file: file)
+        case .nothing: break
+        }
+        if settings.afterCapture == .nothing || saveFailed { // next to the pointer, where the capture just ended
+            FloatingToast.show(done.isEmpty ? "Captured" : done.joined(separator: " · "),
+                               near: CGRect(origin: NSEvent.mouseLocation, size: CGSize(width: 1, height: 1)))
         }
     }
 

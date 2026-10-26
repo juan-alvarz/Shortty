@@ -982,14 +982,6 @@ struct SelfCheck {
         snapshot(card.contentView!, "quick-card.png")
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
-        settings.afterCapture = .card
-        CaptureController.deliver(image)
-        spin(0.2)
-        check(NSApp.windows.contains { $0 is OverlayPanel && $0.isVisible } && !editorWindow.isVisible, "with the card setting, a capture shows the card instead of the editor")
-        QuickCard.dismiss()
-        settings.afterCapture = .editor
-        UserDefaults.standard.removeObject(forKey: "afterCapture")
-
         // MARK: Settings + icon
         // Save folder: saving into a missing folder creates it (temp folder, never the real Downloads)
         let originalFolder = settings.saveFolder
@@ -1011,6 +1003,39 @@ struct SelfCheck {
               "Save in the editor writes the file, closes the editor and shows a notice")
         check(ImageExport.savedNotice(URL(fileURLWithPath: NSHomeDirectory() + "/Downloads/shortty-1-image.png")) == "Saved to ~/Downloads/shortty-1-image.png",
               "the notice names the file, with ~ for the home folder")
+        // After a capture: Copy and Save happen right away, then the editor, the card, or only a notice (never the real clipboard)
+        let captureBoard = NSPasteboard.withUniqueName()
+        func savedCount() -> Int { (try? FileManager.default.contentsOfDirectory(atPath: nested.path))?.count ?? 0 }
+        func toasts() -> [NSWindow] { NSApp.windows.filter { $0 is OverlayPanel && $0.isVisible && $0.ignoresMouseEvents } }
+        settings.copyAfterCapture = true
+        settings.saveAfterCapture = true
+        for show in AfterCapture.allCases {
+            settings.afterCapture = show
+            toasts().forEach { $0.orderOut(nil) }
+            spin(1.1) // file names have a one-second timestamp
+            let (copiesBefore, savesBefore) = (captureBoard.changeCount, savedCount())
+            CaptureController.deliver(image, pasteboard: captureBoard)
+            spin(0.2)
+            let cardShown = NSApp.windows.contains { $0 is OverlayPanel && $0.isVisible && !$0.ignoresMouseEvents }
+            check(captureBoard.changeCount > copiesBefore && savedCount() == savesBefore + 1 && editorWindow.isVisible == (show == .editor)
+                  && cardShown == (show == .card) && toasts().isEmpty == (show != .nothing),
+                  "after a capture, \(show.title) + Copy + Save copies, saves and shows only that")
+            if show == .nothing, let toast = toasts().first { snapshot(toast.contentView!, "toast-after-capture.png") }
+            editor.close()
+            QuickCard.dismiss()
+        }
+        settings.copyAfterCapture = false
+        settings.saveAfterCapture = false
+        toasts().forEach { $0.orderOut(nil) }
+        let (copiesBefore, savesBefore) = (captureBoard.changeCount, savedCount())
+        CaptureController.deliver(image, pasteboard: captureBoard)
+        check(captureBoard.changeCount == copiesBefore && savedCount() == savesBefore && toasts().count == 1, "Nothing without Copy or Save still says it captured")
+        check(UserDefaults.standard.string(forKey: "afterCapture") == "nothing" && UserDefaults.standard.object(forKey: "copyAfterCapture") as? Bool == false,
+              "the after-capture choices are remembered")
+        settings.afterCapture = .editor
+        settings.copyAfterCapture = true
+        ["afterCapture", "copyAfterCapture", "saveAfterCapture"].forEach(UserDefaults.standard.removeObject(forKey:))
+
         try? FileManager.default.removeItem(at: saveRoot)
         settings.saveFolder = originalFolder
         if originalFolder == AppSettings.downloadsFolder { UserDefaults.standard.removeObject(forKey: "saveFolder") }
