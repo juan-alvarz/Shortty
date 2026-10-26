@@ -195,6 +195,7 @@
 			buildPhases = (
 				03F271EF6F59828E809E2CBD /* Sources */,
 				C85A61F6B0A76338F8D7A4BA /* Resources */,
+				AAB44420FC39181253CCF09F /* Refresh the bundle date */,
 			);
 			buildRules = (
 			);
@@ -250,6 +251,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AAB44420FC39181253CCF09F /* Refresh the bundle date */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Refresh the bundle date";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "touch \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		03F271EF6F59828E809E2CBD /* Sources */ = {

@@ -16,6 +16,11 @@ targets:
     platform: macOS
     sources:
       - path: Shortty
+    postBuildScripts:
+      # Xcode never updates the .app folder's own date, and Finder/Dock only refresh a cached icon when it changes.
+      - name: Refresh the bundle date
+        script: touch "$TARGET_BUILD_DIR/$WRAPPER_NAME"
+        basedOnDependencyAnalysis: false
     info:
       path: Shortty/Resources/Info.plist
       properties:
