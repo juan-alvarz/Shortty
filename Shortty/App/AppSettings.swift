@@ -68,6 +68,15 @@ final class AppSettings {
         selectionColorHex.flatMap { Color(hex: $0) }.map { NSColor($0) } ?? .controlAccentColor
     }
 
+    /// Text Card's font size (points) and whether the card has a window title bar; its colors come from the screenshot.
+    var textCardFontSize: Double {
+        didSet { defaults.set(textCardFontSize, forKey: "textCardFontSize") }
+    }
+
+    var textCardWindowBar: Bool {
+        didSet { defaults.set(textCardWindowBar, forKey: "textCardWindowBar") }
+    }
+
     private init() {
         let stored = UserDefaults.standard
         editorLayout = stored.string(forKey: "editorLayout").flatMap(EditorLayout.init(rawValue:)) ?? .classic
@@ -76,6 +85,8 @@ final class AppSettings {
         saveAfterCapture = stored.object(forKey: "saveAfterCapture") as? Bool ?? false
         showsHistory = stored.object(forKey: "showsHistory") as? Bool ?? true
         selectionColorHex = stored.string(forKey: "selectionColor")
+        textCardFontSize = (stored.object(forKey: "textCardFontSize") as? Double ?? 14).clamped(to: TextCard.fontSizes)
+        textCardWindowBar = stored.object(forKey: "textCardWindowBar") as? Bool ?? true
         captureSound = stored.object(forKey: "captureSound") as? Bool ?? true
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
         lazyDelay = (stored.object(forKey: "lazyDelay") as? Int ?? 3).clamped(to: Self.lazyDelayRange)

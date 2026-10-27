@@ -4,7 +4,7 @@ import SwiftUI
 /// Hand-drawn line icons (20×20 design grid, 1.5pt stroke) so the editor doesn't depend on SF Symbols.
 enum IconKind {
     case copy, save, drag, pin, insertImage, backdrop, step, crop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight,
-         recognizeText, eyedropper, duplicate, bringToFront, sendToBack, trash, close, chevronUp
+         recognizeText, textCard, eyedropper, duplicate, bringToFront, sendToBack, trash, close, chevronUp
 }
 
 struct Icon: View {
@@ -117,6 +117,14 @@ struct Icon: View {
                 path.addLines([CGPoint(x: 6.5, y: 8.25), CGPoint(x: 13.5, y: 8.25)])
                 path.addLines([CGPoint(x: 6.5, y: 11.75), CGPoint(x: 11.5, y: 11.75)])
                 context.stroke(path, with: .foreground, style: style)
+            case .textCard:
+                // A small window with code lines.
+                context.stroke(Path(roundedRect: CGRect(x: 2.5, y: 3.5, width: 15, height: 13), cornerRadius: 2.5), with: .foreground, style: style)
+                for x in [5.2, 7.6] { context.fill(Path(ellipseIn: CGRect(x: x - 0.9, y: 5.9, width: 1.8, height: 1.8)), with: .foreground) }
+                var lines = Path()
+                lines.addLines([CGPoint(x: 5.5, y: 10.5), CGPoint(x: 11.5, y: 10.5)])
+                lines.addLines([CGPoint(x: 7.5, y: 13.5), CGPoint(x: 14.5, y: 13.5)])
+                context.stroke(lines, with: .foreground, style: style)
             case .eyedropper:
                 var body = Path()
                 body.addLines([CGPoint(x: 11.2, y: 6.6), CGPoint(x: 13.4, y: 8.8), CGPoint(x: 6.2, y: 16), CGPoint(x: 3.6, y: 16.4), CGPoint(x: 4, y: 13.8)])

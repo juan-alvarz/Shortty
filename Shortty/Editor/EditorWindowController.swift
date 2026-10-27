@@ -38,6 +38,7 @@ final class EditorWindowController: NSWindowController {
             FloatingToast.show(notice, near: frame)
         }
         model.onInsertCapture = { [weak self] in self?.captureAndInsert() }
+        model.onTextCard = { [weak self] area in self?.makeTextCard(from: area) }
         model.onPin = { [weak self] image in
             PinWindow.pin(image, near: self?.window?.frame)
             self?.close()
@@ -78,6 +79,26 @@ final class EditorWindowController: NSWindowController {
             let picture = await ScreenCapture.captureRegion()
             present()
             if let picture { model.insertImage(picture) }
+        }
+    }
+
+    /// Text Card: reads the area's text with its colors, lets the card be tuned in a sheet, then opens it as a new
+    /// capture (kept in the history; the screenshot keeps its edits there too).
+    func makeTextCard(from area: CGRect) {
+        guard let window else { return }
+        let image = model.textCardSource
+        model.toast = "Reading text…"
+        Task {
+            let found = await Task.detached(priority: .userInitiated) { TextRecognition.styledText(in: image, rect: area) }.value
+            guard let found else {
+                model.toast = "No text found there"
+                return
+            }
+            model.toast = nil
+            guard window.isVisible, let card = await TextCardPanel.edit(found, over: window) else { return } // closed while reading
+            CaptureHistory.shared.store(card)
+            show(card, file: CaptureHistory.shared.latest)
+            model.tool = .select
         }
     }
 
@@ -123,7 +144,7 @@ final class EditorWindowController: NSWindowController {
 
     private static let toolKeys: [String: EditorModel.Tool] = [
         "v": .select, "p": .pencil, "a": .arrow, "t": .text, "r": .rectangle, "o": .ellipse,
-        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "c": .crop,
+        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "k": .textCard, "c": .crop,
     ]
 
     /// Holding ⌘ alone shows each tool's key on its button. Internal for the self-check.

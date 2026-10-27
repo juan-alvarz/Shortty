@@ -22,6 +22,7 @@ Capture, mark up and share in seconds, in the spirit of [Shottr](https://shottr.
 
 - **Every kind of capture.** Region, window, screen, scrolling pages, delayed shots, or just the text and QR codes in an area, straight to the clipboard.
 - **An editor where nothing gets flattened.** Arrows, text callouts, shapes, numbered steps, magnifier, blur and spotlight. Select anything later to move, resize or recolor it.
+- **Text Card.** Drag over code, a terminal or a chat, and it's redrawn as a clean window-like card with every word in its original color, so syntax highlighting survives. Tune the background, size and title bar, fix a word, then share it.
 - **Pick up where you left off.** The last 20 captures keep their edits, even after a relaunch.
 - **Private.** No account, no tracking. Text is recognized on-device with Apple's Vision and Live Text; nothing leaves your Mac.
 - **Native and light.** Swift, SwiftUI and AppKit, no third-party dependencies. Lives in the menu bar.
@@ -109,6 +110,7 @@ editor and say where the picture went.
 | Blur | Blur or Erase the area, or only the text found in it (Blur Text, Erase Text). |
 | Spotlight | Dims everything except the area and outlines it. Arrows and text on top stay bright. |
 | Recognize Text | macOS Live Text over the screenshot: select exactly the words you want and copy them. |
+| Text Card | Drag over text (code, a terminal, a chat) and it's redrawn as a clean window-like card, each word in the color it had, so syntax highlighting survives. Before it opens as a new capture, tune the background, text color, size and title bar, fix a word, or select some text and recolor it. |
 | Crop | Nothing is thrown away: Reset or undo brings the whole picture back. |
 
 Also in the editor:
@@ -168,7 +170,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | Key | Tool / action |
 |---|---|
 | `V` `P` `A` `T` `R` `O` | Select, Pencil, Arrow, Text, Rectangle, Ellipse |
-| `N` `M` `B` `S` `X` `C` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Crop |
+| `N` `M` `B` `S` `X` `K` `C` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Text Card, Crop |
 | Return | Apply the crop box |
 | Shift while drawing | Pencil: straight line · Arrow: snaps to 45° · Rectangle/Ellipse: square/circle |
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |

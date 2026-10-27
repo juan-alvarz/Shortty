@@ -4,7 +4,7 @@ import SwiftUI
 
 @Observable
 final class EditorModel {
-    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, step, magnifier, blur, spotlight, recognizeText, crop }
+    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, step, magnifier, blur, spotlight, recognizeText, textCard, crop }
 
     private(set) var image: CGImage
     /// False until the first capture/image is loaded (the window starts with a 1px placeholder).
@@ -59,6 +59,12 @@ final class EditorModel {
     @ObservationIgnored var onInsertCapture: (() -> Void)?
     /// Pin to screen: the window controller floats the finished picture and closes the editor.
     @ObservationIgnored var onPin: ((CGImage) -> Void)?
+    /// Text Card: the area being dragged over (image px), shown until the mouse goes up.
+    var textCardBox: CGRect?
+    /// Text Card: the window controller reads the area's text and opens the card panel.
+    @ObservationIgnored var onTextCard: ((CGRect) -> Void)?
+    /// What Text Card reads: the screenshot with its blur/erase drawn in, so hidden text stays hidden.
+    var textCardSource: CGImage { image.rendering(annotations.filter { $0.tool == .blur }, crop: image.bounds) }
 
     func pin() {
         endEditing()
@@ -157,8 +163,8 @@ final class EditorModel {
     }
     var showsArrowStyles: Bool { optionsTool == .arrow }
     var showsTextStyles: Bool { optionsTool == .text }
-    /// Crop and Recognize Text have buttons instead; erase has nothing to adjust.
-    var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && (optionsTool != .blur || redactStyle.usesStrength) }
+    /// Crop, Recognize Text and Text Card have buttons or a hint instead; erase has nothing to adjust.
+    var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && optionsTool != .textCard && (optionsTool != .blur || redactStyle.usesStrength) }
     var currentWidthRange: ClosedRange<CGFloat> {
         switch optionsTool {
         case .text: 12...120

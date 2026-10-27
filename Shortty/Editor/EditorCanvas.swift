@@ -80,6 +80,7 @@ final class CanvasScrollView: NSScrollView {
             _ = model.backdrop
             _ = model.crop
             _ = model.cropBox
+            _ = model.textCardBox
             _ = model.tool
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -253,6 +254,8 @@ private final class CanvasView: NSView {
         case cropping(start: CGPoint)
         case cropResize(box: CGRect, handle: Handle)
         case cropMove(box: CGRect, start: CGPoint)
+        /// Text Card: dragging over the text to turn into a card.
+        case textCard(start: CGPoint)
     }
 
     private let model: EditorModel
@@ -401,6 +404,9 @@ private final class CanvasView: NSView {
         } else if model.tool == .crop {
             drag = cropDrag(at: point)
             return
+        } else if model.tool == .textCard {
+            drag = .textCard(start: point)
+            return
         } else if let hit = annotation(at: point), hit.tool == model.tool,
                   [.step, .text].contains(hit.tool) || hit.id == model.selection && [.magnifier, .blur, .spotlight].contains(hit.tool) {
             // An existing step or text, or the effect just drawn (it stays selected): dragging moves it instead of
@@ -421,7 +427,7 @@ private final class CanvasView: NSView {
             case .spotlight: .spotlight(rect: CGRect(origin: point, size: .zero), shape: model.spotlightShape)
             case .magnifier: .magnifier(source: CGRect(origin: point, size: .zero), target: CGRect(origin: point, size: .zero), shape: model.magnifierShape)
             case .step: .step(center: point) // keep the button down to place it precisely
-            case .pencil, .select, .text, .recognizeText, .crop: .stroke([point, point]) // 2 points so a click draws a dot
+            case .pencil, .select, .text, .recognizeText, .textCard, .crop: .stroke([point, point]) // 2 points so a click draws a dot
             }
             let annotation = Annotation(shape: shape, color: model.color, width: model.width(for: model.tool))
             model.annotations.append(annotation)
@@ -457,6 +463,11 @@ private final class CanvasView: NSView {
         switch drag {
         case .cropping, .cropResize, .cropMove:
             if let box = model.cropBox, box.width < 4 || box.height < 4 { model.cropBox = nil }
+            return
+        case .textCard:
+            let box = model.textCardBox
+            model.textCardBox = nil
+            if let box, box.width >= 8, box.height >= 8 { model.onTextCard?(box) }
             return
         default: break
         }
@@ -597,6 +608,9 @@ private final class CanvasView: NSView {
             moved.origin.x = min(max(moved.minX, content.minX), content.maxX - moved.width)
             moved.origin.y = min(max(moved.minY, content.minY), content.maxY - moved.height)
             model.cropBox = moved
+        case .textCard(let start):
+            let box = Annotation.dragRect(from: start, to: point, square: false).intersection(model.contentRect.intersection(model.image.bounds)) // not what the crop hides
+            model.textCardBox = box.isNull ? nil : box
         }
     }
 
@@ -799,6 +813,15 @@ private final class AnnotationLayerView: CanvasLayer {
 
         if model.tool == .crop, let crop = model.cropBox {
             drawCropBox(crop, screenPoint: screenPoint)
+        }
+        if let box = model.textCardBox {
+            let outline = NSBezierPath(rect: box)
+            outline.lineWidth = 1.5 * screenPoint
+            outline.setLineDash([6 * screenPoint, 4 * screenPoint], count: 2, phase: 0)
+            NSColor(Theme.accent).withAlphaComponent(0.12).setFill()
+            outline.fill()
+            NSColor(Theme.accent).setStroke()
+            outline.stroke()
         }
 
         guard let selected = model.selectedAnnotation else { return }

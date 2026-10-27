@@ -643,6 +643,22 @@ struct SelfCheck {
         spin(0.3)
         snapshot(window.contentView!, "editor-steps.png")
 
+        // MARK: Text Card (drag)
+        model.select(nil)
+        model.tool = .textCard
+        var textCardArea: CGRect?
+        model.onTextCard = { textCardArea = $0 }
+        let countBeforeCard = model.annotations.count
+        check(model.showsOptions && !model.showsWidthSlider, "text card: a hint, no slider")
+        drag(CGPoint(x: 100, y: 120), CGPoint(x: 700, y: 420))
+        check(textCardArea.map { near($0.minX, 100) && near($0.minY, 120) && near($0.width, 600) && near($0.height, 300) } == true
+              && model.annotations.count == countBeforeCard && model.textCardBox == nil,
+              "dragging with Text Card hands over the area and draws nothing")
+        textCardArea = nil
+        drag(CGPoint(x: 300, y: 300), CGPoint(x: 302, y: 301))
+        check(textCardArea == nil, "a click with Text Card does nothing")
+        model.onTextCard = nil
+
         // MARK: Crop
         model.select(nil)
         model.tool = .crop
@@ -668,6 +684,14 @@ struct SelfCheck {
         check(model.crop == nil, "undo removes the crop")
         model.redo()
         check(model.crop != nil, "redo brings it back")
+        model.tool = .textCard
+        var croppedCardArea: CGRect?
+        model.onTextCard = { croppedCardArea = $0 }
+        drag(CGPoint(x: 300, y: 200), CGPoint(x: 900, y: 700))
+        check(croppedCardArea.map { near($0.minX, 300) && near($0.minY, 200) && near($0.maxX, 600) && near($0.maxY, 400) } == true,
+              "Text Card reads only what the crop shows")
+        model.onTextCard = nil
+        model.tool = .select
         model.resetCrop()
         spin(0.3)
         check(model.crop == nil && model.canvasRect == model.contentRect && model.contentRect != CGRect(x: 200, y: 150, width: 400, height: 250), "Reset shows the whole picture again")
@@ -992,6 +1016,104 @@ struct SelfCheck {
         check(UserDefaults.standard.string(forKey: "selectionColor") == nil && Color(nsColor: settings.selectionColor).hex == Color(nsColor: .controlAccentColor).hex,
               "Use Accent Color goes back to the system's")
 
+        // MARK: Text Card (recognition, card, panel)
+        // A fake code screenshot: monospaced text on a dark editor background, the keyword in its own color, line 2 indented.
+        let codeBackground = NSColor(srgbRed: 0.118, green: 0.118, blue: 0.118, alpha: 1)
+        let keyword = NSColor(srgbRed: 1, green: 0.482, blue: 0.447, alpha: 1), plain = NSColor(srgbRed: 0.475, green: 0.753, blue: 1, alpha: 1)
+        let codeContext = bitmap(900, 330, codeBackground.cgColor)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: codeContext, flipped: false)
+        let codeFont = NSFont.monospacedSystemFont(ofSize: 30, weight: .regular)
+        let advance = ("M" as NSString).size(withAttributes: [.font: codeFont]).width
+        for (line, column, word, color) in [(0, 0, "func", keyword), (0, 5, "run()", plain), (0, 11, "{", plain),
+                                            (1, 4, "let", keyword), (1, 8, "x", plain), (1, 10, "=", plain), (1, 12, "1", plain), (3, 0, "}", plain)] {
+            (word as NSString).draw(at: CGPoint(x: 40 + CGFloat(column) * advance, y: 270 - CGFloat(line) * 70),
+                                    withAttributes: [.font: codeFont, .foregroundColor: color])
+        }
+        NSGraphicsContext.restoreGraphicsState()
+        let codeShot = codeContext.makeImage()!
+        func colorAt(_ text: NSAttributedString, _ word: String) -> NSColor? {
+            let range = (text.string as NSString).range(of: word)
+            return range.location == NSNotFound ? nil : text.attribute(.foregroundColor, at: range.location, effectiveRange: nil) as? NSColor
+        }
+        let styled = TextRecognition.styledText(in: codeShot, rect: CGRect(x: 0, y: 0, width: 900, height: 330))
+        let styledLines = styled?.text.string.components(separatedBy: "\n") ?? []
+        check(styledLines.count == 4 && styledLines.first?.hasPrefix("func run") == true && styledLines[safe: 1]?.hasPrefix("    let") == true
+              && styledLines[safe: 2] == "" && styledLines.last == "}", "Text Card reads the lines, keeps the indentation and the blank line (\(styledLines))")
+        check(styled.map { $0.background.distance(to: codeBackground) < 0.05 } == true, "the card's background comes from the screenshot")
+        check(styled.flatMap { colorAt($0.text, "func") }.map { $0.distance(to: keyword) < 0.12 } == true
+              && styled.flatMap { colorAt($0.text, "run") }.map { $0.distance(to: plain) < 0.12 } == true
+              && styled.flatMap { colorAt($0.text, "let") } == styled.flatMap { colorAt($0.text, "func") },
+              "each word keeps its color from the screenshot, the same color once for every keyword")
+        check(TextRecognition.styledText(in: codeShot, rect: CGRect(x: 0, y: 0, width: 4, height: 4)) == nil
+              && TextRecognition.styledText(in: bitmap(200, 100, codeBackground.cgColor).makeImage()!, rect: CGRect(x: 0, y: 0, width: 200, height: 100)) == nil,
+              "no text, no card")
+        let erasedModel = EditorModel(image: codeShot)
+        erasedModel.annotations = [Annotation(shape: .redact(rect: CGRect(x: 0, y: 0, width: 900, height: 330), style: .erase, textBoxes: []), color: Theme.accent, width: 12)]
+        check(TextRecognition.styledText(in: erasedModel.textCardSource, rect: CGRect(x: 0, y: 0, width: 900, height: 330)) == nil,
+              "Text Card doesn't bring back erased text")
+
+        let sample = StyledText(text: {
+            let text = NSMutableAttributedString(string: "func", attributes: [.foregroundColor: keyword])
+            text.append(NSAttributedString(string: " run() {   \n    let x = 1\n}\n\n"))
+            return text
+        }(), background: codeBackground)
+        let prepared = TextCard.prepare(sample, fontSize: 14)
+        let preparedFont = prepared.text.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        check(prepared.text.string == "func run() {\n    let x = 1\n}" && prepared.background == codeBackground && prepared.textColor.luminance > 0.5,
+              "the card trims trailing spaces and blank lines; uncolored text gets a color that reads on the background")
+        check(preparedFont?.pointSize == 14 && preparedFont?.fontDescriptor.symbolicTraits.contains(.monoSpace) == true
+              && colorAt(prepared.text, "func")?.distance(to: keyword) ?? 1 < 0.01 && prepared.text.attribute(TextCard.followsTextColor, at: 0, effectiveRange: nil) == nil
+              && prepared.text.attribute(TextCard.followsTextColor, at: 5, effectiveRange: nil) != nil,
+              "monospaced at the chosen size; recognized colors stay, the rest follows the text color")
+        let cardStyle = TextCard.Style(background: codeBackground, windowBar: true, title: "main.swift")
+        let cardSize = TextCard.size(of: prepared.text, style: cardStyle)
+        if let card = TextCard.render(prepared.text, style: cardStyle) {
+            check(card.width == Int(cardSize.width * 2) && card.height == Int(cardSize.height * 2), "the card renders at 2× its size")
+            check(pixel(card, 1, 1)[3] == 0 && same(pixel(card, 8, card.height / 2), [30, 30, 30]), "the card has transparent rounded corners and its background inside")
+            check(same(pixel(card, 2 * 24, 2 * 18), [255, 95, 87], 12), "the title bar has the window buttons")
+            if let snapshotDir { try? ImageExport.writePNG(card, to: URL(fileURLWithPath: "\(snapshotDir)/text-card-render.png")) }
+        } else {
+            check(false, "the card renders")
+        }
+
+        let cardModel = TextCardModel(sample)
+        let cardHost = NSHostingView(rootView: TextCardView(model: cardModel))
+        let cardWindow = NSWindow(contentRect: NSRect(origin: .zero, size: cardHost.fittingSize), styleMask: [.titled], backing: .buffered, defer: false)
+        cardWindow.appearance = NSAppearance(named: .darkAqua)
+        cardWindow.contentView = cardHost
+        cardWindow.orderFrontRegardless()
+        spin(0.4)
+        if let textView = cardModel.textView {
+            check(textView.string == "func run() {\n    let x = 1\n}", "the panel shows the card's text, ready to edit")
+            textView.setSelectedRange((textView.string as NSString).range(of: "run"))
+            check(cardModel.hasSelection, "selecting text switches the picker to the selection")
+            let green = NSColor(srgbRed: 0.2, green: 0.78, blue: 0.35, alpha: 1)
+            cardModel.pick(green)
+            check(colorAt(textView.attributedString(), "run") == green && colorAt(textView.attributedString(), "func")?.distance(to: keyword) ?? 1 < 0.01,
+                  "picking a color recolors only the selected text")
+            textView.setSelectedRange(NSRange(location: 0, length: 0))
+            cardModel.textColor = .white
+            check(!cardModel.hasSelection && colorAt(textView.attributedString(), "run") == green && colorAt(textView.attributedString(), "let") == .white,
+                  "the text color changes the rest; a recolored word keeps its color")
+            cardModel.fontSize = 18
+            check((textView.attributedString().attribute(.font, at: 0, effectiveRange: nil) as? NSFont)?.pointSize == 18
+                  && UserDefaults.standard.double(forKey: "textCardFontSize") == 18, "the size applies to all the text and is remembered")
+            cardModel.title = "main.swift"
+            spin(0.2)
+            snapshot(cardHost, "text-card.png")
+            var finished: CGImage?
+            cardModel.onFinish = { finished = $0 }
+            cardModel.finish(true)
+            check(finished.map { CGFloat($0.width) == TextCard.size(of: textView.attributedString(), style: cardModel.style).width * 2 } == true,
+                  "Create Card hands over the card as tuned")
+        } else {
+            check(false, "the panel has a text view")
+        }
+        cardWindow.close()
+        ["textCardFontSize", "textCardWindowBar"].forEach(UserDefaults.standard.removeObject(forKey:))
+        settings.textCardFontSize = 14
+
         // MARK: Settings + icon
         // Save folder: saving into a missing folder creates it (temp folder, never the real Downloads)
         let originalFolder = settings.saveFolder
@@ -1096,4 +1218,8 @@ struct SelfCheck {
         print(failures == 0 ? "ALL PASS" : "\(failures) FAILED")
         exit(failures == 0 ? 0 : 1)
     }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

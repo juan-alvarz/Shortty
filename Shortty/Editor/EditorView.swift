@@ -86,7 +86,7 @@ private let drawingTools: [(tool: EditorModel.Tool, icon: IconKind, name: String
 ]
 private let effectTools: [(tool: EditorModel.Tool, icon: IconKind, name: String, key: String)] = [
     (.magnifier, .magnifier, "Magnifier", "M"), (.blur, .blur, "Blur", "B"), (.spotlight, .spotlight, "Spotlight", "S"),
-    (.recognizeText, .recognizeText, "Recognize Text", "X"), (.crop, .crop, "Crop", "C"),
+    (.recognizeText, .recognizeText, "Recognize Text", "X"), (.textCard, .textCard, "Text Card", "K"), (.crop, .crop, "Crop", "C"),
 ]
 
 extension EditorModel.Tool {
@@ -757,6 +757,8 @@ private struct ToolOptions: View {
                     if model.crop != nil { PanelButton(title: "Reset") { model.resetCrop() } }
                     if model.cropBox != nil { PanelButton(title: "Crop", prominent: true) { model.applyCrop() } }
                 }
+            case .textCard:
+                hint("Drag over text to turn it into a card")
             case .recognizeText:
                 // Status while Live Text looks, then Copy (for a selection) and Copy All.
                 HStack(spacing: 8) {
