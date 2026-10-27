@@ -48,12 +48,6 @@ hdiutil create -volname "$NAME" -srcfolder "$STAGE" -fs HFS+ -format UDRW -ov "$
 DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "$WORK/rw.dmg" | awk '/Apple_HFS/ { print $1 }')
 VOLUME="/Volumes/$NAME"
 
-# The app icon as the disk icon (SetFile comes with the Xcode command line tools).
-if [ -f "$VOLUME/$NAME.app/Contents/Resources/AppIcon.icns" ] && command -v SetFile >/dev/null; then
-  cp "$VOLUME/$NAME.app/Contents/Resources/AppIcon.icns" "$VOLUME/.VolumeIcon.icns"
-  SetFile -a C "$VOLUME"
-fi
-
 osascript <<APPLESCRIPT
 tell application "Finder"
   tell disk "$NAME"
@@ -77,6 +71,13 @@ tell application "Finder"
   end tell
 end tell
 APPLESCRIPT
+
+# The app icon as the disk icon (SetFile comes with the Xcode command line tools).
+# After the Finder pass: done before it, the icon was missing from the finished image.
+if [ -f "$VOLUME/$NAME.app/Contents/Resources/AppIcon.icns" ] && command -v SetFile >/dev/null; then
+  cp "$VOLUME/$NAME.app/Contents/Resources/AppIcon.icns" "$VOLUME/.VolumeIcon.icns"
+  SetFile -a C "$VOLUME"
+fi
 
 chmod -Rf go-w "$VOLUME" || true
 sync
