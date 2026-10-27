@@ -190,7 +190,7 @@ private final class SelectionView: NSView {
             }
             return
         }
-        NSColor(Theme.accent).setStroke()
+        AppSettings.shared.selectionColor.setStroke()
         let border = NSBezierPath(rect: selection.insetBy(dx: -0.75, dy: -0.75))
         border.lineWidth = 1.5
         border.stroke()
@@ -237,11 +237,11 @@ private final class CountdownView: NSView {
         let outline = NSBezierPath(rect: region.insetBy(dx: -2, dy: -2))
         outline.lineWidth = 2
         outline.setLineDash([6, 4], count: 2, phase: 0)
-        NSColor(Theme.accent).setStroke()
+        AppSettings.shared.selectionColor.setStroke()
         outline.stroke()
 
         guard seconds > 0 else { return } // no badge: plain outline (scrolling capture)
-        drawPill("\(seconds)", font: .monospacedDigitSystemFont(ofSize: 15, weight: .bold), fill: NSColor(Theme.accent)) { size in
+        drawPill("\(seconds)", font: .monospacedDigitSystemFont(ofSize: 15, weight: .bold), fill: AppSettings.shared.selectionColor) { size in
             // Above the top-left corner, else below the region, else inside it.
             let above = self.region.maxY + 8
             let below = self.region.minY - 8 - size.height

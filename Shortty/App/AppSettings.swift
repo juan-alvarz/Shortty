@@ -1,5 +1,5 @@
-import Foundation
 import Observation
+import SwiftUI
 
 /// Persisted preferences. Views bind to `AppSettings.shared`; writes land in UserDefaults immediately.
 @Observable
@@ -58,6 +58,16 @@ final class AppSettings {
         didSet { defaults.set(showsHistory, forKey: "showsHistory") }
     }
 
+    /// The outline and badge while picking an area or counting down, as "#RRGGBB". Nil follows the Mac's accent color.
+    var selectionColorHex: String? {
+        didSet { defaults.set(selectionColorHex, forKey: "selectionColor") }
+    }
+
+    /// What the selection overlays draw with: the picked color, else the accent from System Settings → Appearance.
+    var selectionColor: NSColor {
+        selectionColorHex.flatMap { Color(hex: $0) }.map { NSColor($0) } ?? .controlAccentColor
+    }
+
     private init() {
         let stored = UserDefaults.standard
         editorLayout = stored.string(forKey: "editorLayout").flatMap(EditorLayout.init(rawValue:)) ?? .classic
@@ -65,6 +75,7 @@ final class AppSettings {
         copyAfterCapture = stored.object(forKey: "copyAfterCapture") as? Bool ?? true
         saveAfterCapture = stored.object(forKey: "saveAfterCapture") as? Bool ?? false
         showsHistory = stored.object(forKey: "showsHistory") as? Bool ?? true
+        selectionColorHex = stored.string(forKey: "selectionColor")
         captureSound = stored.object(forKey: "captureSound") as? Bool ?? true
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
         lazyDelay = (stored.object(forKey: "lazyDelay") as? Int ?? 3).clamped(to: Self.lazyDelayRange)

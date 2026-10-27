@@ -23,6 +23,9 @@ struct GeneralSettingsView: View {
                 LaunchAtLoginToggle()
                 Toggle("Play sound when capturing", isOn: $settings.captureSound)
             }
+            Section("Capturing") {
+                SelectionColorRow(hex: $settings.selectionColorHex)
+            }
             Section("Saving") {
                 SaveFolderRow(folder: $settings.saveFolder)
             }
@@ -75,6 +78,27 @@ private struct LaunchAtLoginToggle: View {
             NSAlert(error: error).runModal()
         }
         status = SMAppService.mainApp.status
+    }
+}
+
+/// The selection overlay's color: the Mac's accent color until another is picked.
+private struct SelectionColorRow: View {
+    @Binding var hex: String?
+
+    var body: some View {
+        LabeledContent {
+            HStack(spacing: 8) {
+                if hex != nil {
+                    Button("Use Accent Color") { hex = nil }
+                }
+                ColorPicker("", selection: Binding(get: { Color(nsColor: AppSettings.shared.selectionColor) }, set: { hex = $0.hex }),
+                            supportsOpacity: false)
+                    .labelsHidden()
+            }
+        } label: {
+            Text("Selection color")
+            Text(hex == nil ? "Follows the accent color in System Settings → Appearance." : "The outline while selecting an area or counting down.")
+        }
     }
 }
 

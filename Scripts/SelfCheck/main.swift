@@ -982,6 +982,16 @@ struct SelfCheck {
         snapshot(card.contentView!, "quick-card.png")
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
+        // MARK: Selection color
+        check(settings.selectionColorHex == nil && Color(nsColor: settings.selectionColor).hex == Color(nsColor: .controlAccentColor).hex,
+              "the selection overlay follows the Mac's accent color out of the box")
+        settings.selectionColorHex = "#22CC88"
+        check(Color(nsColor: settings.selectionColor).hex == "#22CC88" && UserDefaults.standard.string(forKey: "selectionColor") == "#22CC88",
+              "a picked selection color is used and remembered")
+        settings.selectionColorHex = nil
+        check(UserDefaults.standard.string(forKey: "selectionColor") == nil && Color(nsColor: settings.selectionColor).hex == Color(nsColor: .controlAccentColor).hex,
+              "Use Accent Color goes back to the system's")
+
         // MARK: Settings + icon
         // Save folder: saving into a missing folder creates it (temp folder, never the real Downloads)
         let originalFolder = settings.saveFolder
