@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- Shortty DMG background (cobalt). 660 × 400 points; Finder draws the app icon at (165, 205) and
+     Applications at (495, 205), both 128 pt, with their names underneath. Keep that area clear. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gloock&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root { --cobalt: #2b3bf0; --paper: #eceef5; --ink: #0b0d1c; --orange: #ff6b3d; }
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 660px; height: 400px; overflow: hidden; background: var(--cobalt); color: #fff; font-family: 'IBM Plex Mono', monospace; position: relative; }
+  h1 { position: absolute; left: 32px; top: 26px; font: 34px/1 'Gloock', Georgia, serif; letter-spacing: -0.02em; }
+  h1 span { color: var(--orange); }
+  .tray { position: absolute; left: 0; right: 0; top: 104px; height: 206px; background: var(--paper); }
+  .corners { position: absolute; width: 168px; height: 168px; top: 121px; --c: var(--orange);
+    background:
+      linear-gradient(var(--c) 0 0) top left / 22px 3px, linear-gradient(var(--c) 0 0) top left / 3px 22px,
+      linear-gradient(var(--c) 0 0) top right / 22px 3px, linear-gradient(var(--c) 0 0) top right / 3px 22px,
+      linear-gradient(var(--c) 0 0) bottom left / 22px 3px, linear-gradient(var(--c) 0 0) bottom left / 3px 22px,
+      linear-gradient(var(--c) 0 0) bottom right / 22px 3px, linear-gradient(var(--c) 0 0) bottom right / 3px 22px;
+    background-repeat: no-repeat; }
+  .a { left: 81px; } .b { left: 411px; --c: var(--ink); }
+  .arrow { position: absolute; left: 262px; top: 196px; width: 136px; height: 18px; }
+  .hint { position: absolute; left: 32px; right: 32px; bottom: 26px; font-size: 11px; line-height: 1.5; color: #c6cbff; }
+  .hint b { color: #fff; font-weight: 600; }
+  .tag { position: absolute; left: 263px; top: 222px; padding: 3px 6px; font: 500 10px/1 'IBM Plex Mono'; background: var(--orange); color: var(--ink); }
+  /* Name tags behind Finder's icon labels. Finder draws the labels black in light mode and white in
+     dark mode, so this mid-tone keeps both readable (about 4:1 either way). */
+  .nametag { position: absolute; top: 272px; width: 118px; height: 22px; background: #c0603f; }
+  .nametag.app { left: 106px; } .nametag.apps { left: 436px; }
+</style></head><body>
+  <h1>Drag Shortty into <span>Applications.</span></h1>
+  <div class="tray"></div>
+  <div class="corners a"></div><div class="corners b"></div>
+  <svg class="arrow" viewBox="0 0 136 18"><path d="M2 9 H122" stroke="#ff6b3d" stroke-width="3" stroke-dasharray="8 6"/><path d="M118 1 L134 9 L118 17 Z" fill="#ff6b3d"/></svg>
+  <div class="tag">drag →</div>
+  <p class="hint">Blocked the first time you open it? Shortty is free, so it isn't signed by Apple.<br><b>System Settings → Privacy &amp; Security → Open Anyway.</b> Only once.</p>
+  <div class="nametag app"></div><div class="nametag apps"></div>
+</body></html>
