@@ -1,0 +1,37 @@
+<!doctype html>
+<!-- Shortty DMG background (blueprint). 660 × 400 points; Finder draws the app icon at (165, 205) and
+     Applications at (495, 205), both 128 pt, with their names underneath. Keep that area clear. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Architects+Daughter&display=swap">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 660px; height: 400px; overflow: hidden; position: relative; color: #eef3ff; font-family: 'Barlow Condensed', sans-serif;
+    background:
+      linear-gradient(rgb(188 208 248 / 0.13) 1px, transparent 1px) 0 0 / 60px 60px,
+      linear-gradient(90deg, rgb(188 208 248 / 0.13) 1px, transparent 1px) 0 0 / 60px 60px,
+      linear-gradient(rgb(188 208 248 / 0.05) 1px, transparent 1px) 0 0 / 12px 12px,
+      linear-gradient(90deg, rgb(188 208 248 / 0.05) 1px, transparent 1px) 0 0 / 12px 12px,
+      #0b2a6f; }
+  h1 { position: absolute; left: 30px; top: 26px; font: 700 34px/1 'Barlow Condensed'; text-transform: uppercase; letter-spacing: 0.01em; }
+  .sheet { position: absolute; right: 30px; top: 34px; font: 500 12px/1 'Barlow Condensed'; letter-spacing: 0.2em; color: #8fb0f2; }
+  svg { position: absolute; inset: 0; }
+  .note { position: absolute; left: 270px; top: 160px; width: 120px; text-align: center; font: 16px/1.1 'Architects Daughter', cursive; }
+  .hint { position: absolute; left: 30px; right: 30px; bottom: 28px; font: 14px/1.35 'Architects Daughter', cursive; color: #bcd0f8; }
+  .hint b { color: #eef3ff; font-weight: 400; }
+  /* Name tags behind Finder's icon labels. Finder draws the labels black in light mode and white in
+     dark mode, so this mid-tone keeps both readable (about 4:1 either way). */
+  .nametag { position: absolute; top: 272px; width: 118px; height: 22px; background: #5876bd; }
+  .nametag.app { left: 106px; } .nametag.apps { left: 436px; }
+</style></head><body>
+  <h1>Drag Shortty into Applications</h1>
+  <span class="sheet">SHEET / INSTALL</span>
+  <svg viewBox="0 0 660 400" fill="none" stroke="#eef3ff" stroke-width="1.5">
+    <rect x="85" y="122" width="160" height="186" stroke-dasharray="5 4"/>
+    <rect x="415" y="122" width="160" height="186" stroke-dasharray="5 4" stroke="#8fb0f2"/>
+    <path d="M262 205 H398" /><path d="M262 199 V211 M398 199 V211"/>
+    <path d="M388 200 L398 205 L388 210" />
+  </svg>
+  <p class="note">drag me over here</p>
+  <p class="hint">blocked on first open? → <b>System Settings › Privacy &amp; Security › Open Anyway</b> (just once)</p>
+  <div class="nametag app"></div><div class="nametag apps"></div>
+</body></html>
