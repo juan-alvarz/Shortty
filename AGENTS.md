@@ -10,6 +10,7 @@ dark chrome, custom line icons, no SF Symbols in the editor UI.
 xcodegen generate          # after adding/removing/renaming files. project.yml is the source; never edit Shortty.xcodeproj
 Scripts/selfcheck.sh /tmp/shots   # drives the real editor views; prints PASS/FAIL; PNG snapshots go to the dir if given
 Scripts/install.sh         # Release build → /Applications/Shortty.app, launch
+Scripts/make-dmg.sh        # Release build → build/Shortty-X.Y.Z.dmg with the styled install window
 ```
 
 Type-check under the real Swift 6 settings (the self-check compiles in Swift 5 mode):
@@ -32,8 +33,9 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
 | `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text; Text Card's colored lines), `TextCard` + `TextCardPanel` (draw the card; tune it in a sheet before it opens as a new capture), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
-| `Scripts` | install, signing cert, icon renderer, self-check |
+| `Scripts` | install, signing cert, icon renderer, self-check, `make-dmg.sh` (release disk image) |
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
+| `Design/dmg` | Disk image window artwork (`background.html` → `background.png` + `@2x`), see its README |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
 
 ## Recipes

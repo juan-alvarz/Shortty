@@ -2,3 +2,4 @@ xcuserdata/
 *.xcuserstate
 .build.noindex/
 .DS_Store
+build/
