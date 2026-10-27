@@ -64,7 +64,8 @@ cd Shortty
 Scripts/install.sh
 ```
 
-`install.sh` builds Shortty, installs it to `/Applications/Shortty.app` and opens it. The first run also creates a
+`install.sh` builds Shortty, installs it to `/Applications/Shortty.app` and opens it (`--profile-only` installs to
+`~/Applications` instead, just for your account, with no admin rights needed). The first run also creates a
 free local code-signing certificate ("Shortty Dev") in your login keychain, and macOS asks for your login password
 once to trust it. That certificate is what lets macOS remember the Screen Recording permission each time you
 rebuild. To update later:
@@ -101,7 +102,7 @@ editor and say where the picture went.
 
 | Tool | What it does |
 |---|---|
-| Pencil | Freehand lines. Shift draws a straight one. |
+| Pencil | Freehand lines. Shift draws a straight one; Shift+Control snaps it to 45° steps. |
 | Arrow | Four styles. Drag the middle handle to curve it; Shift snaps to 45°. |
 | Text | A callout (bubble with a pointer), a label (filled box) or plain letters. Click to type in place. |
 | Rectangle, Ellipse | Outlines. Shift makes a square or a circle. |
@@ -112,6 +113,7 @@ editor and say where the picture went.
 | Recognize Text | macOS Live Text over the screenshot: select exactly the words you want and copy them. |
 | Text Card | Drag over text (code, a terminal, a chat) and it's redrawn as a clean window-like card, each word in the color it had, so syntax highlighting survives. Before it opens as a new capture, tune the background, text color, size and title bar, fix a word, or select some text and recolor it. |
 | Crop | Nothing is thrown away: Reset or undo brings the whole picture back. |
+| Ruler | Point at something to measure it: lines run sideways and up and down to the nearest edges, with their length in pixels. Hold `1` for sideways only, `2` for up and down only. |
 
 Also in the editor:
 
@@ -170,9 +172,10 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | Key | Tool / action |
 |---|---|
 | `V` `P` `A` `T` `R` `O` | Select, Pencil, Arrow, Text, Rectangle, Ellipse |
-| `N` `M` `B` `S` `X` `K` `C` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Text Card, Crop |
+| `N` `M` `B` `S` `X` `K` `C` `U` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Text Card, Crop, Ruler |
 | Return | Apply the crop box |
-| Shift while drawing | Pencil: straight line · Arrow: snaps to 45° · Rectangle/Ellipse: square/circle |
+| Shift while drawing | Pencil: straight line (add Control to snap to 45°) · Arrow: snaps to 45° · Rectangle/Ellipse: square/circle |
+| `1` / `2` held | Ruler: measure sideways only / up and down only |
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |
 | Arrows / Shift+Arrows | Nudge the selection 1 px / 10 px |
 | `⌫` | Delete the selection |

@@ -77,7 +77,7 @@ struct SelfCheck {
         check(ScreenCapture.rectArgument(CGRect(x: 100, y: 200, width: 300, height: 400), primaryHeight: 1000) == "100,400,300,400", "rect argument flips y")
 
         let model = EditorModel(image: image)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 620),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 920, height: 680),
                               styleMask: [.titled, .closable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: .darkAqua)
         window.titlebarAppearsTransparent = true
@@ -206,6 +206,27 @@ struct SelfCheck {
         if case .stroke(let points) = model.annotations.last!.shape {
             check(points.count == 11 && near(points[7].x, 300) && near(points[7].y, 290), "freehand → Shift straight → freehand")
         }
+        drag(CGPoint(x: 100, y: 500), CGPoint(x: 300, y: 520), [.shift, .control])
+        if case .stroke(let points) = model.annotations.last!.shape {
+            check(near(points.last!.x, 300) && near(points.last!.y, 500), "Shift+Control pencil snaps to 0° (end y \(Int(points.last!.y)))")
+        }
+
+        // MARK: Ruler
+        let ruled = bitmap(100, 60, CGColor(gray: 1, alpha: 1))
+        ruled.setFillColor(CGColor(gray: 0, alpha: 1))
+        ruled.fill(CGRect(x: 20, y: 10, width: 50, height: 30)) // image px x 20..<70, y 20..<50
+        let pixels = RulerPixels(ruled.makeImage()!)
+        check(pixels.run(at: CGPoint(x: 30, y: 30), horizontal: true) == 20..<70 && pixels.run(at: CGPoint(x: 30, y: 30), horizontal: false) == 20..<50,
+              "ruler runs stop at the edges")
+        check(pixels.run(at: CGPoint(x: 5, y: 5), horizontal: true) == 0..<100 && pixels.run(at: CGPoint(x: -1, y: 5), horizontal: true) == nil,
+              "ruler runs end at the picture's edge, nothing off it")
+        model.tool = .ruler
+        canvas.mouseMoved(with: mouse(.mouseMoved, CGPoint(x: 500, y: 300)))
+        check(model.rulerPoint.map { near($0.x, 500) && near($0.y, 300) } == true, "ruler follows the pointer")
+        spin(0.2)
+        snapshot(window.contentView!, "ruler.png")
+        model.tool = .pencil
+        check(model.rulerPoint == nil, "ruler clears when another tool is picked")
 
         // MARK: Color picker model
         model.select(model.annotations.last!.id)
@@ -759,11 +780,11 @@ struct SelfCheck {
         let secondFile = try! ImageExport.temporaryFile(model.rendered)
         check(!FileManager.default.fileExists(atPath: dragFile.path) || dragFile == secondFile, "older drag files are cleaned up")
 
-        // Toolbar at the minimum width (880)
-        window.setContentSize(NSSize(width: 880, height: 620))
+        // Toolbar at the minimum width (920)
+        window.setContentSize(NSSize(width: 920, height: 620))
         spin(0.4)
         snapshot(window.contentView!, "toolbar-min.png")
-        window.setContentSize(NSSize(width: 900, height: 620))
+        window.setContentSize(NSSize(width: 920, height: 680))
 
         // MARK: Capture actions from Shottr's list
         let ids = Dictionary(uniqueKeysWithValues: CaptureAction.allCases.map { ($0, $0.hotkeyID) })
@@ -833,6 +854,13 @@ struct SelfCheck {
         editor.model.endEditing()
         check(editor.handle(vKey) && editor.model.tool == .select, "after typing, V switches to Select")
         check(editor.handle(key("m", kVK_ANSI_M, in: editorWindow)) && editor.model.tool == .magnifier, "M picks the magnifier")
+        check(editor.handle(key("u", kVK_ANSI_U, in: editorWindow)) && editor.model.tool == .ruler, "U picks the ruler")
+        check(editor.handle(key("1", kVK_ANSI_1, in: editorWindow)) && editor.model.rulerAxes == .horizontal, "holding 1 measures across only")
+        _ = editor.handle(key("1", kVK_ANSI_1, in: editorWindow, type: .keyUp))
+        check(editor.model.rulerAxes == .both, "releasing 1 measures both ways again")
+        check(editor.handle(key("2", kVK_ANSI_2, in: editorWindow)) && editor.model.rulerAxes == .vertical, "holding 2 measures up and down only")
+        _ = editor.handle(key("2", kVK_ANSI_2, in: editorWindow, type: .keyUp))
+        editor.model.tool = .magnifier
 
         // One Esc clears the selection but never closes the editor; two in quick succession close it
         let escKey = key("\u{1b}", kVK_Escape, in: editorWindow)

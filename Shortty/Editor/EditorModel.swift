@@ -4,7 +4,7 @@ import SwiftUI
 
 @Observable
 final class EditorModel {
-    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, step, magnifier, blur, spotlight, recognizeText, textCard, crop }
+    enum Tool { case select, pencil, arrow, text, rectangle, ellipse, step, magnifier, blur, spotlight, recognizeText, textCard, crop, ruler }
 
     private(set) var image: CGImage
     /// False until the first capture/image is loaded (the window starts with a 1px placeholder).
@@ -24,6 +24,7 @@ final class EditorModel {
             endEditing()
             if tool != .select { selection = nil }
             if tool != .crop { cropBox = nil }
+            if tool != .ruler { rulerPoint = nil }
         }
     }
     /// Crop tool: the box being adjusted, not applied yet (image px).
@@ -61,6 +62,9 @@ final class EditorModel {
     @ObservationIgnored var onPin: ((CGImage) -> Void)?
     /// Text Card: the area being dragged over (image px), shown until the mouse goes up.
     var textCardBox: CGRect?
+    /// Ruler tool: the pointer (image px) while it's over the canvas, and which runs it measures.
+    var rulerPoint: CGPoint?
+    var rulerAxes: RulerPixels.Axes = .both
     /// Text Card: the window controller reads the area's text and opens the card panel.
     @ObservationIgnored var onTextCard: ((CGRect) -> Void)?
     /// What Text Card reads: the screenshot with its blur/erase drawn in, so hidden text stays hidden.
@@ -163,8 +167,8 @@ final class EditorModel {
     }
     var showsArrowStyles: Bool { optionsTool == .arrow }
     var showsTextStyles: Bool { optionsTool == .text }
-    /// Crop, Recognize Text and Text Card have buttons or a hint instead; erase has nothing to adjust.
-    var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && optionsTool != .textCard && (optionsTool != .blur || redactStyle.usesStrength) }
+    /// Crop, Recognize Text, Text Card and Ruler have buttons or a hint instead; erase has nothing to adjust.
+    var showsWidthSlider: Bool { optionsTool != .crop && optionsTool != .recognizeText && optionsTool != .textCard && optionsTool != .ruler && (optionsTool != .blur || redactStyle.usesStrength) }
     var currentWidthRange: ClosedRange<CGFloat> {
         switch optionsTool {
         case .text: 12...120

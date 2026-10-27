@@ -34,6 +34,7 @@
 		B613E27C51B5A41213982071 /* TextRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87D3C4069CF2E06B7281757E /* TextRecognition.swift */; };
 		C2269DE7C000E3CC427AEBCC /* FloatingToast.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F0848AB96555AEC52E3587 /* FloatingToast.swift */; };
 		D1CE10DCD7E2918BD9D1ACDB /* PinWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */; };
+		D1FF54005A1CD4BA27A0A17E /* Ruler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7674BC6A6680E232CF31AF9A /* Ruler.swift */; };
 		D5CA6C1A0168C7E19F2B23F6 /* ScrollStitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */; };
 		E0355470B16B0B1C0E6F43D1 /* CaptureController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E67EC2996327FAED2B61B3 /* CaptureController.swift */; };
 		E3374EAF5CE814FE26234827 /* CaptureHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AC6DE754337FAF9185EE35 /* CaptureHistory.swift */; };
@@ -60,6 +61,7 @@
 		59A30846B375FE454EFE2BAE /* QuickCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickCard.swift; sourceTree = "<group>"; };
 		5CD5DAAB356A8C72B7ABBD3E /* TextCardPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCardPanel.swift; sourceTree = "<group>"; };
 		5D9FE5C68B274F0B8385EE5D /* Effects.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Effects.swift; sourceTree = "<group>"; };
+		7674BC6A6680E232CF31AF9A /* Ruler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ruler.swift; sourceTree = "<group>"; };
 		796DCAD3F4B813967C121324 /* Arrow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Arrow.swift; sourceTree = "<group>"; };
 		7A7845EF05EE7FEAECC8733A /* TextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextCapture.swift; sourceTree = "<group>"; };
 		7BC4816D2FA9B0822F685E95 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -183,6 +185,7 @@
 				D92EE158689CD51AD95D04ED /* ImageExport.swift */,
 				CC36456BA5D1E6BBCBEF3374 /* PinWindow.swift */,
 				59A30846B375FE454EFE2BAE /* QuickCard.swift */,
+				7674BC6A6680E232CF31AF9A /* Ruler.swift */,
 				FA9AB0C8710FF1D865A89E32 /* Text.swift */,
 				C45FC3A163AB2A50A75C6260 /* TextCard.swift */,
 				5CD5DAAB356A8C72B7ABBD3E /* TextCardPanel.swift */,
@@ -308,6 +311,7 @@
 				D1CE10DCD7E2918BD9D1ACDB /* PinWindow.swift in Sources */,
 				8D7D58C9F5514D6690E0EA38 /* QuickCard.swift in Sources */,
 				FA6A37BEFF6078B665D1D9C1 /* RegionSelector.swift in Sources */,
+				D1FF54005A1CD4BA27A0A17E /* Ruler.swift in Sources */,
 				2D513F71A27483AA5C895727 /* ScreenCapture.swift in Sources */,
 				AA7F826391DDAB660C5FD82A /* ScrollCapture.swift in Sources */,
 				D5CA6C1A0168C7E19F2B23F6 /* ScrollStitcher.swift in Sources */,

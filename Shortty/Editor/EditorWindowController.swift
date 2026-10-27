@@ -43,7 +43,7 @@ final class EditorWindowController: NSWindowController {
             PinWindow.pin(image, near: self?.window?.frame)
             self?.close()
         }
-        _ = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in // lives as long as the app
+        _ = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in // lives as long as the app
             guard let self, event.window === self.window else { return event }
             return self.handle(event) ? nil : event
         }
@@ -144,7 +144,7 @@ final class EditorWindowController: NSWindowController {
 
     private static let toolKeys: [String: EditorModel.Tool] = [
         "v": .select, "p": .pencil, "a": .arrow, "t": .text, "r": .rectangle, "o": .ellipse,
-        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "k": .textCard, "c": .crop,
+        "m": .magnifier, "b": .blur, "s": .spotlight, "x": .recognizeText, "n": .step, "k": .textCard, "c": .crop, "u": .ruler,
     ]
 
     /// Holding ⌘ alone shows each tool's key on its button. Internal for the self-check.
@@ -163,6 +163,11 @@ final class EditorWindowController: NSWindowController {
 
     /// Editor shortcuts. Returns false to let the event through (e.g. to the text being typed). Internal for the self-check.
     func handle(_ event: NSEvent) -> Bool {
+        // Ruler: 1 and 2 pick one direction only while held.
+        if event.type == .keyUp {
+            if [kVK_ANSI_1, kVK_ANSI_2].contains(Int(event.keyCode)) { model.rulerAxes = .both }
+            return false
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
         let isEscape = Int(event.keyCode) == kVK_Escape
@@ -210,6 +215,8 @@ final class EditorWindowController: NSWindowController {
             if model.tool != .select { model.tool = .select } else { model.select(nil) }
         case kVK_Return where model.tool == .crop, kVK_ANSI_KeypadEnter where model.tool == .crop:
             model.applyCrop()
+        case kVK_ANSI_1 where model.tool == .ruler: model.rulerAxes = .horizontal
+        case kVK_ANSI_2 where model.tool == .ruler: model.rulerAxes = .vertical
         case kVK_Delete where hasSelection, kVK_ForwardDelete where hasSelection:
             model.deleteSelection()
         case kVK_LeftArrow where hasSelection: model.nudgeSelection(by: CGPoint(x: -step, y: 0))

@@ -296,7 +296,21 @@ private final class CanvasView: NSView {
             addSubview(layer)
         }
         // .inVisibleRect keeps the area matched to the visible part as it scrolls and zooms.
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .cursorUpdate, .activeInKeyWindow, .inVisibleRect], owner: self))
+        observeRuler()
+    }
+
+    /// The ruler repaints only the overlay as the pointer moves, not the picture under it.
+    private func observeRuler() {
+        withObservationTracking {
+            _ = model.rulerPoint
+            _ = model.rulerAxes
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.overlay.needsDisplay = true
+                self?.observeRuler()
+            }
+        }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -356,7 +370,11 @@ private final class CanvasView: NSView {
     // MARK: Cursor
 
     override func cursorUpdate(with event: NSEvent) { cursor(for: imagePoint(event)).set() }
-    override func mouseMoved(with event: NSEvent) { if drag == nil { cursor(for: imagePoint(event)).set() } }
+    override func mouseMoved(with event: NSEvent) {
+        if model.tool == .ruler { model.rulerPoint = imagePoint(event) }
+        if drag == nil { cursor(for: imagePoint(event)).set() }
+    }
+    override func mouseExited(with event: NSEvent) { model.rulerPoint = nil }
 
     private func cursor(for point: CGPoint) -> NSCursor {
         if let grip = grip(at: point) { return grip.cursor }
@@ -399,8 +417,8 @@ private final class CanvasView: NSView {
             model.select(hit.id)
             drag = Self.moveDrag(for: hit, at: point)
             NSCursor.closedHand.set()
-        } else if model.tool == .recognizeText {
-            return // Live Text handles clicks on the picture; around it there's nothing to do
+        } else if model.tool == .recognizeText || model.tool == .ruler {
+            return // Live Text handles clicks on the picture; the ruler only measures
         } else if model.tool == .crop {
             drag = cropDrag(at: point)
             return
@@ -427,7 +445,7 @@ private final class CanvasView: NSView {
             case .spotlight: .spotlight(rect: CGRect(origin: point, size: .zero), shape: model.spotlightShape)
             case .magnifier: .magnifier(source: CGRect(origin: point, size: .zero), target: CGRect(origin: point, size: .zero), shape: model.magnifierShape)
             case .step: .step(center: point) // keep the button down to place it precisely
-            case .pencil, .select, .text, .recognizeText, .textCard, .crop: .stroke([point, point]) // 2 points so a click draws a dot
+            case .pencil, .select, .text, .recognizeText, .textCard, .crop, .ruler: .stroke([point, point]) // 2 points so a click draws a dot
             }
             let annotation = Annotation(shape: shape, color: model.color, width: model.width(for: model.tool))
             model.annotations.append(annotation)
@@ -435,10 +453,10 @@ private final class CanvasView: NSView {
             drag = .drawing(id: annotation.id, start: point)
             overlay.showsSize = annotation.usesBoxHandles && annotation.tool != .pencil
         }
-        // Shift pressed or released mid-drag takes effect without moving the mouse.
+        // Shift (or Control) pressed or released mid-drag takes effect without moving the mouse.
         shiftMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard let self else { return event }
-            self.update(to: self.lastPoint, shift: event.modifierFlags.contains(.shift), pointerMoved: false)
+            self.update(to: self.lastPoint, modifiers: event.modifierFlags, pointerMoved: false)
             return event
         }
     }
@@ -447,7 +465,7 @@ private final class CanvasView: NSView {
         guard drag != nil else { return }
         autoscroll(with: event)
         lastPoint = imagePoint(event)
-        update(to: lastPoint, shift: event.modifierFlags.contains(.shift), pointerMoved: true)
+        update(to: lastPoint, modifiers: event.modifierFlags, pointerMoved: true)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -514,8 +532,9 @@ private final class CanvasView: NSView {
         model.beginEditing(annotation.id, before: before)
     }
 
-    private func update(to point: CGPoint, shift: Bool, pointerMoved: Bool) {
+    private func update(to point: CGPoint, modifiers: NSEvent.ModifierFlags, pointerMoved: Bool) {
         guard let drag else { return }
+        let shift = modifiers.contains(.shift)
         if pointerMoved { moved = true }
         switch drag {
         case .drawing(let id, let start):
@@ -523,10 +542,12 @@ private final class CanvasView: NSView {
             switch model.annotations[index].shape {
             case .stroke(var points):
                 if shift {
-                    // Straight line from where Shift went down (or the stroke start) toward the pointer.
+                    // Straight line from where Shift went down (or the stroke start) toward the pointer;
+                    // with Control too, at a multiple of 45° like the arrow.
                     let anchor = straightFrom ?? points.count
                     straightFrom = anchor
-                    points = Array(points.prefix(anchor)) + [point]
+                    let end = modifiers.contains(.control) ? Self.snapped(from: points[anchor - 1], to: point) : point
+                    points = Array(points.prefix(anchor)) + [end]
                 } else {
                     straightFrom = nil // releasing Shift continues freehand from the line's end
                     guard pointerMoved else { return }
@@ -800,6 +821,7 @@ private final class ImageLayerView: CanvasLayer {
 /// Annotations, the selection box with handles, and a size label while drawing or resizing shapes.
 private final class AnnotationLayerView: CanvasLayer {
     var showsSize = false
+    private var rulerPixels: RulerPixels?
 
     override func draw(_ dirtyRect: NSRect) {
         guard let context = NSGraphicsContext.current?.cgContext, bounds.width > 0 else { return }
@@ -822,6 +844,10 @@ private final class AnnotationLayerView: CanvasLayer {
             outline.fill()
             NSColor(Theme.accent).setStroke()
             outline.stroke()
+        }
+
+        if model.tool == .ruler, let point = model.rulerPoint {
+            drawRuler(at: point, screenPoint: screenPoint)
         }
 
         guard let selected = model.selectedAnnotation else { return }
@@ -874,6 +900,42 @@ private final class AnnotationLayerView: CanvasLayer {
             square.fill()
         }
         drawSizeLabel(box, screenPoint: screenPoint)
+    }
+
+    /// Ruler tool: lines along the runs of same-colored pixels through the pointer, and their lengths beside it.
+    private func drawRuler(at point: CGPoint, screenPoint: CGFloat) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        if rulerPixels?.image !== model.image { rulerPixels = RulerPixels(model.image) }
+        let axes = model.rulerAxes
+        let across = axes == .vertical ? nil : rulerPixels?.run(at: point, horizontal: true)
+        let down = axes == .horizontal ? nil : rulerPixels?.run(at: point, horizontal: false)
+        guard across != nil || down != nil else { return }
+
+        let center = CGPoint(x: point.x.rounded(.down) + 0.5, y: point.y.rounded(.down) + 0.5)
+        let tick = 4 * screenPoint
+        let path = NSBezierPath()
+        if let across {
+            path.move(to: CGPoint(x: CGFloat(across.lowerBound), y: center.y)); path.line(to: CGPoint(x: CGFloat(across.upperBound), y: center.y))
+            for x in [across.lowerBound, across.upperBound] {
+                path.move(to: CGPoint(x: CGFloat(x), y: center.y - tick)); path.line(to: CGPoint(x: CGFloat(x), y: center.y + tick))
+            }
+        }
+        if let down {
+            path.move(to: CGPoint(x: center.x, y: CGFloat(down.lowerBound))); path.line(to: CGPoint(x: center.x, y: CGFloat(down.upperBound)))
+            for y in [down.lowerBound, down.upperBound] {
+                path.move(to: CGPoint(x: center.x - tick, y: CGFloat(y))); path.line(to: CGPoint(x: center.x + tick, y: CGFloat(y)))
+            }
+        }
+        path.lineWidth = screenPoint
+        NSColor(Theme.accent).setStroke()
+        path.stroke()
+
+        let label = [across, down].compactMap { $0.map { "\($0.count)" } }.joined(separator: " × ") + " px"
+        context.saveGState()
+        context.translateBy(x: center.x + 10 * screenPoint, y: center.y + 10 * screenPoint)
+        context.scaleBy(x: screenPoint, y: screenPoint)
+        drawPill(label, font: .monospacedDigitSystemFont(ofSize: 11, weight: .medium)) { _ in .zero }
+        context.restoreGState()
     }
 
     /// "W × H" in image pixels under the box's bottom-right corner, the same size at any zoom.

@@ -9,7 +9,7 @@ dark chrome, custom line icons, no SF Symbols in the editor UI.
 ```bash
 xcodegen generate          # after adding/removing/renaming files. project.yml is the source; never edit Shortty.xcodeproj
 Scripts/selfcheck.sh /tmp/shots   # drives the real editor views; prints PASS/FAIL; PNG snapshots go to the dir if given
-Scripts/install.sh         # Release build → /Applications/Shortty.app, launch
+Scripts/install.sh         # Release build → /Applications/Shortty.app, launch (--profile-only: ~/Applications)
 Scripts/make-dmg.sh        # Release build → build/Shortty-X.Y.Z.dmg with the styled install window
 ```
 
@@ -31,12 +31,23 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Shortty/App` | Entry point and menu bar menu, `AppDelegate` + `AppPresence` (regular app while a titled window is open, menu bar only otherwise), `AppSettings` (UserDefaults-backed, `@Observable`) |
 | `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`), `CaptureHistory` (last 20 captures in Caches, each with its saved edits as `<capture>.json`; reopen and the history strip), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
-| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `TextRecognition` (Vision line boxes for Blur Text; Text Card's colored lines), `TextCard` + `TextCardPanel` (draw the card; tune it in a sheet before it opens as a new capture), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
+| `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `Ruler` (same-color runs through a pixel, for the Ruler tool), `TextRecognition` (Vision line boxes for Blur Text; Text Card's colored lines), `TextCard` + `TextCardPanel` (draw the card; tune it in a sheet before it opens as a new capture), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
-| `Scripts` | install, signing cert, icon renderer, self-check, `make-dmg.sh` (release disk image) |
+| `Scripts` | install, signing cert, icon renderer, self-check, `make-dmg.sh` (release disk image), `make-dmg-background.swift` (its window artwork) |
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
-| `Design/dmg` | Disk image window artwork (`background.html` → `background.png` + `@2x`), see its README |
+| `Design/dmg` | Disk image window background, 1× and 2× → `swift Scripts/make-dmg-background.swift` (layout shared with `make-dmg.sh`) |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
+
+## Code quality
+
+Every change is the smallest one that fully works. In order: don't build it; reuse what's in the repo; use the platform
+(AppKit, CoreGraphics, Vision); then write the minimum code. No helpers, options or files "for later".
+- Artwork and generated assets are drawn by Swift scripts with AppKit (`make-icon.swift`, `make-dmg-background.swift`) or kept as
+  SVG. No HTML/CSS, headless browsers, web fonts or other outside tools.
+- Delete what a change makes obsolete (old sources, previews, docs) in the same change.
+- Pure logic (geometry, pixel scans, parsing) lives in its own type so the self-check can test it without views.
+- Comments say why, in one line. Match the surrounding code's naming, density and idioms.
+- No Claude attribution (`Co-Authored-By`, session links) in commits or PRs.
 
 ## Recipes
 
