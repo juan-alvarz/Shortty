@@ -32,8 +32,12 @@ else
 fi
 [ -d "$APP" ] || { echo "No app at $APP"; exit 1; }
 
+# Finder finds the disk by its name, so a second "Shortty" disk would get the other one styled.
+[ -e "/Volumes/$NAME" ] && { echo "Eject the mounted $NAME disk first (/Volumes/$NAME)"; exit 1; }
+
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
+# On failure, also detach the writable image so it isn't left mounted.
+trap '[ -n "${DEVICE:-}" ] && hdiutil detach -force "$DEVICE" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
 
 # What the disk shows: the app, a link to /Applications, and the hidden background.
 STAGE="$WORK/stage"

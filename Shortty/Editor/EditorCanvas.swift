@@ -846,6 +846,7 @@ private final class AnnotationLayerView: CanvasLayer {
             outline.stroke()
         }
 
+        if model.tool != .ruler { rulerPixels = nil } // a full copy of the picture's pixels: only kept while measuring
         if model.tool == .ruler, let point = model.rulerPoint {
             drawRuler(at: point, screenPoint: screenPoint)
         }
