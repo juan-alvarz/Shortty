@@ -1,0 +1,32 @@
+<!doctype html>
+<!-- Shortty DMG background (neon). 660 × 400 points; Finder draws the app icon at (165, 205) and
+     Applications at (495, 205), both 128 pt, with their names underneath. Keep that area clear. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tilt+Neon&family=Figtree:wght@400;600&display=swap">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body { width: 660px; height: 400px; overflow: hidden; position: relative; color: #fbf6f3; font-family: 'Figtree', sans-serif;
+    background: radial-gradient(45% 55% at 25% 50%, rgb(255 122 69 / 0.16), transparent 70%), radial-gradient(45% 55% at 75% 50%, rgb(255 79 139 / 0.12), transparent 70%), linear-gradient(#303037, #151518); }
+  h1 { position: absolute; left: 0; right: 0; top: 30px; text-align: center; font: 30px/1 'Tilt Neon', sans-serif; color: #ffe8de;
+    text-shadow: 0 0 6px rgb(255 122 69 / 0.9), 0 0 18px rgb(255 122 69 / 0.55), 0 0 40px rgb(255 79 139 / 0.4); }
+  svg { position: absolute; inset: 0; }
+  .hint { position: absolute; left: 0; right: 0; bottom: 24px; text-align: center; font-size: 11.5px; line-height: 1.5; color: #b6b0bb; }
+  .hint b { color: #ffd9c9; font-weight: 600; }
+  /* Name tags behind Finder's icon labels. Finder draws the labels black in light mode and white in
+     dark mode, so this mid-tone keeps both readable (about 4:1 either way). */
+  .nametag { position: absolute; top: 272px; width: 118px; height: 22px; background: #b8584a; }
+  .nametag.app { left: 106px; } .nametag.apps { left: 436px; }
+</style></head><body>
+  <h1>Drag Shortty into Applications</h1>
+  <svg viewBox="0 0 660 400">
+    <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <g fill="none" stroke="#ff7a45" stroke-width="3" stroke-linecap="round" filter="url(#glow)">
+      <path d="M85 141 V121 H105 M225 121 H245 V141 M245 269 V289 H225 M105 289 H85 V269"/>
+      <path d="M415 141 V121 H435 M555 121 H575 V141 M575 269 V289 H555 M435 289 H415 V269" stroke="#ff5a9a"/>
+      <path d="M268 205 C 300 170, 360 170, 392 205" stroke-dasharray="2 10"/>
+      <path d="M380 192 L393 206 L376 211"/>
+    </g>
+  </svg>
+  <p class="hint">First open blocked? Shortty is free, so it isn't signed by Apple.<br><b>System Settings → Privacy &amp; Security → Open Anyway</b>, just once.</p>
+  <div class="nametag app"></div><div class="nametag apps"></div>
+</body></html>
