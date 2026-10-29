@@ -97,16 +97,17 @@ During a countdown the seconds show next to the menu bar icon, and the menu has 
 
 Every capture opens in one editor window (unless Settings → After a capture says otherwise). While it's open, Shortty is a regular app: it's in the Dock and ⌘Tab, and
 ⌘, opens its Settings. Close the window and Shortty goes back to the menu bar, still running. Everything you draw stays
-editable: select it to move it, resize it from its handles, recolor it or change its thickness. Copy and Save close the
+editable: select it to move it, resize it from its handles, recolor it or change its thickness. Drag over empty space to
+select several at once (pictures stay put), then move, recolor or delete them together. Copy and Save close the
 editor and say where the picture went.
 
 | Tool | What it does |
 |---|---|
 | Pencil | Freehand lines. Shift draws a straight one; Shift+Control snaps it to 45° steps. |
 | Arrow | Four styles. Drag the middle handle to curve it; Shift snaps to 45°. |
-| Text | A callout (bubble with a pointer), a label (filled box) or plain letters. Click to type in place. |
+| Text | A callout (bubble with a pointer), a label (filled box) or plain letters. Click to type in place, or drag from where the text goes to what it points at. |
 | Rectangle, Ellipse | Outlines. Shift makes a square or a circle. |
-| Numbered steps | Click to drop 1, 2, 3… badges; deleting one renumbers the rest. |
+| Numbered steps | Click to drop 1, 2, 3… badges; each points from its corner; drag to aim it. Deleting one renumbers the rest. |
 | Magnifier | Drag over a small area and a 2× copy appears beside it, joined by a line. |
 | Blur | Blur or Erase the area, or only the text found in it (Blur Text, Erase Text). |
 | Spotlight | Dims everything except the area and outlines it. Arrows and text on top stay bright. |

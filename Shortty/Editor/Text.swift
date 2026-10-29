@@ -26,11 +26,16 @@ struct TextBox {
         self.string = string
         attributes = Self.attributes(fontSize: fontSize, style: style, color: color)
         let measured = Self.measure(string, attributes: attributes, fontSize: fontSize)
-        let padding = style == .plain ? .zero : CGSize(width: (fontSize * 0.55).rounded(), height: (fontSize * 0.3).rounded())
+        let padding = Self.padding(style: style, fontSize: fontSize)
         box = CGRect(x: origin.x, y: origin.y, width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
         textRect = CGRect(x: origin.x + padding.width, y: origin.y + padding.height, width: measured.width, height: measured.height)
-        cornerRadius = (fontSize * 0.3).rounded()
+        cornerRadius = (fontSize * 0.22).rounded()
         pointerPath = style == .callout ? Self.pointerPath(box: box, tip: pointer, fontSize: fontSize, cornerRadius: cornerRadius) : nil
+    }
+
+    /// Space between the text and the box edge; the canvas uses it to put the caret where the user clicked.
+    static func padding(style: TextStyle, fontSize: CGFloat) -> CGSize {
+        style == .plain ? .zero : CGSize(width: (fontSize * 0.45).rounded(), height: (fontSize * 0.28).rounded())
     }
 
     static func attributes(fontSize: CGFloat, style: TextStyle, color: Color) -> [NSAttributedString.Key: Any] {
@@ -61,8 +66,7 @@ struct TextBox {
         NSGraphicsContext.restoreGraphicsState()
     }
 
-    /// Tapered band from the box edge facing the tip to the tip, ending in a rounded point (like Shottr's),
-    /// so the pointer stays visible all the way instead of fading into a needle.
+    /// Tapered wedge from the box edge facing the tip, with inward-curving sides and a small rounded point (like Shottr's).
     private static func pointerPath(box: CGRect, tip: CGPoint, fontSize: CGFloat, cornerRadius: CGFloat) -> CGPath? {
         let nx = (tip.x - box.midX) / max(box.width / 2, 1)
         let ny = (tip.y - box.midY) / max(box.height / 2, 1)
@@ -73,33 +77,39 @@ struct TextBox {
         let vertical = abs(ny) >= abs(nx)
         let length = hypot(tip.x - box.midX, tip.y - box.midY) - (vertical ? box.height : box.width) / 2
         let wanted = min(max(fontSize * 0.6, length * 0.09), fontSize * 1.2)
-        let baseA: CGPoint, baseB: CGPoint
+        // Each side meets the box with a fillet: it leaves the edge `fillet` further out, tangent to it, so the joint is smooth.
+        let room = max(((vertical ? box.width : box.height) - 2 * cornerRadius) / 2, 1)
+        let half = min(wanted, room), outer = min(half * 1.6, room)
+        let center: CGPoint, edge: CGPoint // middle of the base (1px into the box so there's no seam), and the edge direction
         if vertical {
-            let half = min(wanted, max((box.width - 2 * cornerRadius) / 2, 1))
-            let x = clamp(tip.x, box.minX + cornerRadius + half, box.maxX - cornerRadius - half)
-            let y = ny > 0 ? box.maxY - 1 : box.minY + 1 // 1px into the box so there's no seam
-            (baseA, baseB) = (CGPoint(x: x - half, y: y), CGPoint(x: x + half, y: y))
+            center = CGPoint(x: clamp(tip.x, box.minX + cornerRadius + outer, box.maxX - cornerRadius - outer), y: ny > 0 ? box.maxY - 1 : box.minY + 1)
+            edge = CGPoint(x: 1, y: 0)
         } else {
-            let half = min(wanted, max((box.height - 2 * cornerRadius) / 2, 1))
-            let y = clamp(tip.y, box.minY + cornerRadius + half, box.maxY - cornerRadius - half)
-            let x = nx > 0 ? box.maxX - 1 : box.minX + 1
-            (baseA, baseB) = (CGPoint(x: x, y: y - half), CGPoint(x: x, y: y + half))
+            center = CGPoint(x: nx > 0 ? box.maxX - 1 : box.minX + 1, y: clamp(tip.y, box.minY + cornerRadius + outer, box.maxY - cornerRadius - outer))
+            edge = CGPoint(x: 0, y: 1)
         }
+        let along = { (d: CGFloat) in CGPoint(x: center.x + edge.x * d, y: center.y + edge.y * d) }
+        let (baseA, baseB) = (along(-half), along(half))
 
-        // Rounded end: a half circle whose far edge sits exactly on the tip.
-        let base = CGPoint(x: (baseA.x + baseB.x) / 2, y: (baseA.y + baseB.y) / 2)
+        // Each side bows toward the base→tip line, so the wedge flares out of the box and narrows,
+        // then ends in a small round cap (a needle point looks harsh) whose far edge sits on the tip.
+        let base = center
         let span = hypot(tip.x - base.x, tip.y - base.y)
         guard span > 0 else { return nil }
-        let u = CGPoint(x: (tip.x - base.x) / span, y: (tip.y - base.y) / span) // toward the tip
-        let n = CGPoint(x: -u.y, y: u.x)
-        let radius = min(max(fontSize * 0.1, 1.5), span / 4)
-        let center = CGPoint(x: tip.x - u.x * radius, y: tip.y - u.y * radius)
-        // Walk base(+n side) → rounded end → base(−n side).
-        let (sideN, sideMinusN) = (baseA.x - base.x) * n.x + (baseA.y - base.y) * n.y >= 0 ? (baseA, baseB) : (baseB, baseA)
+        let u = CGPoint(x: (tip.x - base.x) / span, y: (tip.y - base.y) / span), n = CGPoint(x: -u.y, y: u.x)
+        let radius = min(max(fontSize * 0.07, 1.5), span / 4)
+        let cap = CGPoint(x: tip.x - u.x * radius, y: tip.y - u.y * radius)
+        let bow = { (side: CGPoint) in CGPoint(x: base.x + (tip.x - base.x) * 0.3 + (side.x - base.x) * 0.25,
+                                               y: base.y + (tip.y - base.y) * 0.3 + (side.y - base.y) * 0.25) }
+        // Walk fillet(+n side) → round cap → fillet(−n side); the base points pull each curve along the edge first.
+        let nFirst = edge.x * n.x + edge.y * n.y < 0 // baseA (−edge) is on the +n side
+        let (sideN, sideMinusN) = nFirst ? (baseA, baseB) : (baseB, baseA)
+        let (outerN, outerMinusN) = nFirst ? (along(-outer), along(outer)) : (along(outer), along(-outer))
         let path = CGMutablePath()
-        path.move(to: sideN)
-        path.addRelativeArc(center: center, radius: radius, startAngle: atan2(n.y, n.x), delta: -.pi) // from +n through the tip (u)
-        path.addLine(to: sideMinusN)
+        path.move(to: outerN)
+        path.addCurve(to: CGPoint(x: cap.x + n.x * radius, y: cap.y + n.y * radius), control1: sideN, control2: bow(sideN))
+        path.addRelativeArc(center: cap, radius: radius, startAngle: atan2(n.y, n.x), delta: -.pi) // from +n through the tip (u)
+        path.addCurve(to: outerMinusN, control1: bow(sideMinusN), control2: sideMinusN)
         path.closeSubpath()
         return path
     }

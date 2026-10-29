@@ -76,6 +76,8 @@ final class CanvasScrollView: NSScrollView {
             _ = model.zoom
             _ = model.annotations
             _ = model.selection
+            _ = model.group
+            _ = model.marqueeBox
             _ = model.editingID
             _ = model.backdrop
             _ = model.crop
@@ -212,11 +214,11 @@ private struct Handle {
     }
 }
 
-/// Something on the selection you can drag: a box handle, an arrow's start / middle (bend) / end, or a callout's pointer.
+/// Something on the selection you can drag: a box handle, an arrow's start / middle (bend) / end, or a callout's or step's pointer.
 private enum Grip {
     case box(Handle)
     case arrowStart, arrowBend, arrowEnd
-    case calloutPointer
+    case calloutPointer, stepTip
     /// Magnifier corners: resizing the source keeps the zoom; resizing the enlarged copy changes it.
     case magnifierSource(Handle), magnifierTarget(Handle)
 
@@ -233,7 +235,10 @@ private func grips(for annotation: Annotation) -> [(grip: Grip, point: CGPoint)]
     case .magnifier(let source, let target, _):
         return Handle.corners.map { (.magnifierSource($0), $0.point(in: source.standardized)) }
             + Handle.corners.map { (.magnifierTarget($0), $0.point(in: target.standardized)) }
-    case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image, .step:
+    case .step(let center, _):
+        // Pointer pushed into the badge: the grip waits just off its lower right, ready to pull it out again.
+        return [(.stepTip, annotation.stepTip ?? CGPoint(x: center.x + annotation.width * 0.4, y: center.y + annotation.width * 0.4))]
+    case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image:
         break
     }
     let box = annotation.bounds
@@ -256,6 +261,11 @@ private final class CanvasView: NSView {
         case cropMove(box: CGRect, start: CGPoint)
         /// Text Card: dragging over the text to turn into a card.
         case textCard(start: CGPoint)
+        /// Text tool: the button is still down after starting new text; dragging aims the callout's pointer.
+        case aimingText(id: Annotation.ID, pointer: CGPoint)
+        /// Select tool: dragging over empty space to pick several annotations, then moving them together.
+        case marquee(start: CGPoint)
+        case movingGroup(start: CGPoint)
     }
 
     private let model: EditorModel
@@ -405,9 +415,15 @@ private final class CanvasView: NSView {
             } else {
                 drag = .reshaping(original: selected, grip: grip)
             }
+        } else if model.tool == .select, model.annotations.contains(where: {
+            model.group.contains($0.id) && $0.bounds.insetBy(dx: -4 * pixelsPerScreenPoint, dy: -4 * pixelsPerScreenPoint).contains(point)
+        }) {
+            drag = .movingGroup(start: point)
+            NSCursor.closedHand.set()
         } else if model.tool == .select {
             guard let hit = annotation(at: point) else {
                 model.select(nil)
+                drag = .marquee(start: point)
                 return
             }
             if event.clickCount == 2, hit.tool == .text {
@@ -434,7 +450,7 @@ private final class CanvasView: NSView {
             if hit.tool == .text { editOnClick = hit.id }
             NSCursor.closedHand.set()
         } else if model.tool == .text {
-            startText(at: point)
+            drag = startText(at: point)
             return
         } else {
             let shape: Annotation.Shape = switch model.tool {
@@ -444,7 +460,7 @@ private final class CanvasView: NSView {
             case .blur: .redact(rect: CGRect(origin: point, size: .zero), style: model.redactStyle, textBoxes: [])
             case .spotlight: .spotlight(rect: CGRect(origin: point, size: .zero), shape: model.spotlightShape)
             case .magnifier: .magnifier(source: CGRect(origin: point, size: .zero), target: CGRect(origin: point, size: .zero), shape: model.magnifierShape)
-            case .step: .step(center: point) // keep the button down to place it precisely
+            case .step: .step(center: point, tip: nil) // dragging before letting go pulls out a pointer
             case .pencil, .select, .text, .recognizeText, .textCard, .crop, .ruler: .stroke([point, point]) // 2 points so a click draws a dot
             }
             let annotation = Annotation(shape: shape, color: model.color, width: model.width(for: model.tool))
@@ -487,6 +503,12 @@ private final class CanvasView: NSView {
             model.textCardBox = nil
             if let box, box.width >= 8, box.height >= 8 { model.onTextCard?(box) }
             return
+        case .aimingText:
+            return // part of creating the text: typing records it, with the pointer, as one undo step
+        case .marquee:
+            if let box = model.marqueeBox { model.selectGroup(in: box) }
+            model.marqueeBox = nil
+            return
         default: break
         }
         if case .drawing(let id, _) = drag, let index = model.annotations.firstIndex(where: { $0.id == id }),
@@ -495,7 +517,7 @@ private final class CanvasView: NSView {
             model.selection = nil
         }
         model.recordChange(from: annotationsBeforeDrag)
-        if let id = model.selection { model.refreshTextBoxes(id) } // Blur/Erase Text (always the selection): find the text under its new area
+        for id in model.group.union(model.selection.map { [$0] } ?? []) { model.refreshTextBoxes(id) } // Blur/Erase Text: find the text under its new area
         if let id = editOnClick, !moved { model.beginEditing(id) }
     }
 
@@ -520,9 +542,9 @@ private final class CanvasView: NSView {
     }
 
     /// New text where the user clicked: the caret lands about on the click.
-    private func startText(at point: CGPoint) {
+    private func startText(at point: CGPoint) -> Drag {
         let fontSize = model.width(for: .text)
-        let padding = model.textStyle == .plain ? CGSize.zero : CGSize(width: (fontSize * 0.55).rounded(), height: (fontSize * 0.3).rounded())
+        let padding = TextBox.padding(style: model.textStyle, fontSize: fontSize)
         let origin = CGPoint(x: point.x - padding.width, y: point.y - padding.height - fontSize * 0.6)
         let pointer = CGPoint(x: origin.x + fontSize * 0.6, y: origin.y + fontSize * 2.6) // just below-left, like a speech bubble
         let annotation = Annotation(shape: .text(origin: origin, string: "", style: model.textStyle, pointer: pointer),
@@ -530,6 +552,7 @@ private final class CanvasView: NSView {
         let before = model.annotations
         model.annotations.append(annotation)
         model.beginEditing(annotation.id, before: before)
+        return .aimingText(id: annotation.id, pointer: pointer)
     }
 
     private func update(to point: CGPoint, modifiers: NSEvent.ModifierFlags, pointerMoved: Bool) {
@@ -560,8 +583,10 @@ private final class CanvasView: NSView {
                 model.annotations[index].shape = .ellipse(Annotation.dragRect(from: start, to: point, square: shift))
             case .arrow(_, _, let bend, let style):
                 model.annotations[index].shape = .arrow(start: start, end: shift ? Self.snapped(from: start, to: point) : point, bend: bend, style: style)
-            case .step:
-                model.annotations[index].shape = .step(center: point)
+            case .step(let center, _):
+                // Only a real drag re-aims it; a click keeps the default corner pointer.
+                let pulled = hypot(point.x - center.x, point.y - center.y) > model.annotations[index].width / 2
+                model.annotations[index].shape = .step(center: center, tip: pulled ? point : nil)
             case .text, .image:
                 break // text is typed, pictures inserted
             case .redact(_, let style, let boxes):
@@ -593,7 +618,7 @@ private final class CanvasView: NSView {
                 case .arrowStart: start = shift ? Self.snapped(from: end, to: point) : point
                 case .arrowEnd: end = shift ? Self.snapped(from: start, to: point) : point
                 case .arrowBend: bend = shift ? 0 : ArrowCurve.bend(through: point, start: start, end: end) // Shift straightens
-                case .box, .calloutPointer, .magnifierSource, .magnifierTarget: return
+                case .box, .calloutPointer, .stepTip, .magnifierSource, .magnifierTarget: return
                 }
                 reshaped.shape = .arrow(start: start, end: end, bend: bend, style: style)
             case .text(let origin, let string, let style, _):
@@ -614,7 +639,9 @@ private final class CanvasView: NSView {
                 default:
                     return
                 }
-            case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image, .step:
+            case .step(let center, _):
+                reshaped.shape = .step(center: center, tip: point)
+            case .stroke, .rectangle, .ellipse, .redact, .spotlight, .image:
                 return
             }
             replace(reshaped)
@@ -629,6 +656,18 @@ private final class CanvasView: NSView {
             moved.origin.x = min(max(moved.minX, content.minX), content.maxX - moved.width)
             moved.origin.y = min(max(moved.minY, content.minY), content.maxY - moved.height)
             model.cropBox = moved
+        case .aimingText(let id, let defaultPointer):
+            guard let index = model.annotations.firstIndex(where: { $0.id == id }),
+                  case .text(let origin, let string, let style, _) = model.annotations[index].shape else { return }
+            // Back over the box (or a click that barely moved): keep the default pointer below it.
+            let aimed = !model.annotations[index].textBox!.box.insetBy(dx: -8, dy: -8).contains(point)
+            model.annotations[index].shape = .text(origin: origin, string: string, style: style, pointer: aimed ? point : defaultPointer)
+        case .marquee(let start):
+            model.marqueeBox = Annotation.dragRect(from: start, to: point, square: false)
+        case .movingGroup(let start):
+            var offset = CGPoint(x: point.x - start.x, y: point.y - start.y)
+            if shift { abs(offset.x) > abs(offset.y) ? (offset.y = 0) : (offset.x = 0) } // Shift: move along one axis
+            model.annotations = annotationsBeforeDrag.map { model.group.contains($0.id) ? $0.moved(by: offset) : $0 }
         case .textCard(let start):
             let box = Annotation.dragRect(from: start, to: point, square: false).intersection(model.contentRect.intersection(model.image.bounds)) // not what the crop hides
             model.textCardBox = box.isNull ? nil : box
@@ -849,6 +888,22 @@ private final class AnnotationLayerView: CanvasLayer {
         if model.tool != .ruler { rulerPixels = nil } // a full copy of the picture's pixels: only kept while measuring
         if model.tool == .ruler, let point = model.rulerPoint {
             drawRuler(at: point, screenPoint: screenPoint)
+        }
+
+        if let box = model.marqueeBox {
+            let outline = NSBezierPath(rect: box)
+            outline.lineWidth = screenPoint
+            NSColor.white.withAlphaComponent(0.08).setFill()
+            outline.fill()
+            NSColor.white.withAlphaComponent(0.85).setStroke()
+            outline.stroke()
+        }
+        for member in model.annotations where model.group.contains(member.id) {
+            let outline = NSBezierPath(rect: member.textBox?.box.insetBy(dx: -3, dy: -3) ?? member.bounds)
+            outline.lineWidth = screenPoint
+            outline.setLineDash([4 * screenPoint, 3 * screenPoint], count: 2, phase: 0)
+            NSColor.white.withAlphaComponent(0.85).setStroke()
+            outline.stroke()
         }
 
         guard let selected = model.selectedAnnotation else { return }

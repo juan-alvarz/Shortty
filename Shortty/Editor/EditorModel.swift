@@ -18,11 +18,13 @@ final class EditorModel {
     var selectionFrame: CGRect?
     /// Bottom to top. Mutations made outside the methods below must call `recordChange(from:)` to be undoable.
     var annotations: [Annotation] = [] { didSet { scheduleSave() } }
-    var selection: Annotation.ID?
+    var selection: Annotation.ID? { didSet { if selection != nil { group = [] } } }
+    /// Several annotations picked with a drag over empty space (Select tool); `selection` is nil while it's set.
+    var group: Set<Annotation.ID> = []
     var tool: Tool = .pencil {
         didSet {
             endEditing()
-            if tool != .select { selection = nil }
+            if tool != .select { selection = nil; group = [] }
             if tool != .crop { cropBox = nil }
             if tool != .ruler { rulerPoint = nil }
         }
@@ -62,6 +64,8 @@ final class EditorModel {
     @ObservationIgnored var onPin: ((CGImage) -> Void)?
     /// Text Card: the area being dragged over (image px), shown until the mouse goes up.
     var textCardBox: CGRect?
+    /// Select tool: the area being dragged over to pick several annotations, shown until the mouse goes up.
+    var marqueeBox: CGRect?
     /// Ruler tool: the pointer (image px) while it's over the canvas, and which runs it measures.
     var rulerPoint: CGPoint?
     var rulerAxes: RulerPixels.Axes = .both
@@ -187,6 +191,7 @@ final class EditorModel {
     func select(_ id: Annotation.ID?) {
         if id != editingID { endEditing() }
         selection = id
+        group = []
         guard let selected = selectedAnnotation else { return }
         color = selected.color
         if case .arrow(_, _, _, let style) = selected.shape { arrowStyle = style }
@@ -260,8 +265,14 @@ final class EditorModel {
 
     func setText(_ string: String) {
         guard let i = annotations.firstIndex(where: { $0.id == editingID }),
-              case .text(let origin, _, let style, let pointer) = annotations[i].shape else { return }
+              case .text(let origin, _, let style, var pointer) = annotations[i].shape, let oldBox = annotations[i].textBox?.box else { return }
         annotations[i].shape = .text(origin: origin, string: string, style: style, pointer: pointer)
+        // A pointer just below the box (the default one) stays the same distance under it as lines are added or removed;
+        // one aimed further away stays on its target.
+        if pointer.y >= oldBox.maxY, pointer.y - oldBox.maxY <= annotations[i].width * 1.2, let newBox = annotations[i].textBox?.box {
+            pointer.y += newBox.maxY - oldBox.maxY
+            annotations[i].shape = .text(origin: origin, string: string, style: style, pointer: pointer)
+        }
     }
 
     /// Finishes typing: empty text is removed, the whole edit becomes one undo step.
@@ -294,10 +305,23 @@ final class EditorModel {
         updateSelection(undoable: undoable) { $0.color = newColor }
     }
 
-    // Index looked up before `edit` starts: reading `annotations` inside its inout access would be an exclusivity violation.
+    /// Picks every annotation touching `area` except pictures: one becomes the selection, several the group.
+    func selectGroup(in area: CGRect) {
+        let picked = annotations.filter { !$0.isImage && $0.bounds.insetBy(dx: -1, dy: -1).intersects(area) }.map(\.id)
+        select(picked.count == 1 ? picked[0] : nil)
+        if picked.count > 1 { group = Set(picked) }
+    }
+
+    /// The selection, or the group, as indices.
+    private var selectedIndices: [Int] {
+        group.isEmpty ? selectedIndex.map { [$0] } ?? [] : annotations.indices.filter { group.contains(annotations[$0].id) }
+    }
+
+    // Indices looked up before `edit` starts: reading `annotations` inside its inout access would be an exclusivity violation.
     private func updateSelection(undoable: Bool, _ change: (inout Annotation) -> Void) {
-        guard let i = selectedIndex else { return }
-        if undoable { edit { change(&$0[i]) } } else { change(&annotations[i]) }
+        let indices = selectedIndices
+        guard !indices.isEmpty else { return }
+        if undoable { edit { for i in indices { change(&$0[i]) } } } else { for i in indices { change(&annotations[i]) } }
     }
 
     /// Slider drags: `true` when one starts, `false` when it ends, which records the whole drag as one undo step.
@@ -311,9 +335,10 @@ final class EditorModel {
     }
 
     func deleteSelection() {
-        guard let i = selectedIndex else { return }
-        edit { $0.remove(at: i) }
-        selection = nil
+        let indices = selectedIndices
+        guard !indices.isEmpty else { return }
+        edit { $0.remove(atOffsets: IndexSet(indices)) }
+        select(nil)
     }
 
     /// A copy a little down and to the right, selected.
@@ -337,9 +362,10 @@ final class EditorModel {
     }
 
     func nudgeSelection(by offset: CGPoint) {
-        guard let i = selectedIndex else { return }
-        edit { $0[i] = $0[i].moved(by: offset) }
-        refreshTextBoxes(annotations[i].id)
+        let indices = selectedIndices
+        guard !indices.isEmpty else { return }
+        edit { for i in indices { $0[i] = $0[i].moved(by: offset) } }
+        for i in indices { refreshTextBoxes(annotations[i].id) }
     }
 
     /// Makes the change from `before` to the current annotations undoable (no-op if nothing changed).
@@ -359,6 +385,7 @@ final class EditorModel {
         annotations = snapshot.annotations
         crop = snapshot.crop
         if selectedIndex == nil { selection = nil }
+        group = group.filter { id in annotations.contains { $0.id == id } }
     }
 
     // MARK: Crop

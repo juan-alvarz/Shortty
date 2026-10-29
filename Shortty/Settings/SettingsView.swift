@@ -9,6 +9,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             ShortcutsSettingsView()
                 .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            AboutSettingsView()
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 460)
     }
@@ -50,6 +52,23 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The app icon, name and version.
+struct AboutSettingsView: View {
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
+            Text("Shortty").font(.title2.weight(.semibold))
+            Text("Version \(Self.version)").foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
     }
 }
 

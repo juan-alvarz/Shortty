@@ -22,8 +22,9 @@ struct Annotation: Identifiable, Equatable {
         /// A pasted, dropped or newly captured picture, drawn into `rect`.
         case image(rect: CGRect, image: Picture)
         /// A numbered badge. Its number is its position among the steps (so deleting one renumbers the rest);
-        /// the diameter is `width`.
-        case step(center: CGPoint)
+        /// the diameter is `width`. `tip`: where its pointer ends (nil: the lower-right corner;
+        /// inside the badge: no pointer).
+        case step(center: CGPoint, tip: CGPoint?)
     }
 
     let id = UUID()
@@ -81,7 +82,7 @@ struct Annotation: Identifiable, Equatable {
             return style == .callout ? box.union(CGRect(origin: pointer, size: .zero)) : box
         case .magnifier(let source, let target, _):
             return source.standardized.union(target.standardized)
-        case .step(let center):
+        case .step(let center, _):
             return CGRect(x: center.x - width / 2, y: center.y - width / 2, width: width, height: width)
         }
     }
@@ -125,8 +126,9 @@ struct Annotation: Identifiable, Equatable {
             return rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) // areas: anywhere inside
         case .magnifier(let source, let target, _):
             return [source, target].contains { $0.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) }
-        case .step(let center):
+        case .step(let center, _):
             return hypot(point.x - center.x, point.y - center.y) <= width / 2 + tolerance
+                || stepTip.map { distance(point, toSegment: center, $0) <= tolerance + width * 0.15 } == true
         }
     }
 
@@ -176,8 +178,8 @@ struct Annotation: Identifiable, Equatable {
             copy.shape = .magnifier(source: box(source), target: box(target), shape: shape)
         case .image(let rect, let image):
             copy.shape = .image(rect: box(rect), image: image)
-        case .step(let center):
-            copy.shape = .step(center: transform(center))
+        case .step(let center, let tip):
+            copy.shape = .step(center: transform(center), tip: tip.map(transform))
         }
         return copy
     }
@@ -303,16 +305,26 @@ extension CGContext {
                 interpolationQuality = .high
                 drawUpright(picture.cgImage, in: rect.standardized)
                 restoreGState()
-            case .step(let center):
-                drawStep(stepNumbers[annotation.id] ?? 0, at: center, diameter: annotation.width, color: annotation.color)
+            case .step(let center, _):
+                drawStep(stepNumbers[annotation.id] ?? 0, at: center, diameter: annotation.width, color: annotation.color, tip: annotation.stepTip)
             case .redact, .spotlight:
                 break // drawn above, before everything else
             }
         }
     }
 
-    /// A filled circle with its number centered in black or white, whichever reads better on the color.
-    func drawStep(_ number: Int, at center: CGPoint, diameter: CGFloat, color: Color) {
+    /// A filled circle with its number centered in black or white, whichever reads better on the color,
+    /// and a pointer toward `tip` that leaves the circle at most 45° either side of it (tangent for the default corner tip).
+    func drawStep(_ number: Int, at center: CGPoint, diameter: CGFloat, color: Color, tip: CGPoint? = nil) {
+        if let tip {
+            let radius = diameter / 2, angle = atan2(tip.y - center.y, tip.x - center.x)
+            let spread = min(acos(radius / hypot(tip.x - center.x, tip.y - center.y)), .pi / 4)
+            move(to: tip)
+            addLine(to: CGPoint(x: center.x + radius * cos(angle + spread), y: center.y + radius * sin(angle + spread)))
+            addLine(to: CGPoint(x: center.x + radius * cos(angle - spread), y: center.y + radius * sin(angle - spread)))
+            closePath()
+            fillPath()
+        }
         fillEllipse(in: CGRect(x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter, height: diameter))
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: diameter * (number > 9 ? 0.46 : 0.56), weight: .bold),
@@ -328,6 +340,14 @@ extension CGContext {
 }
 
 extension Annotation {
+    /// A step's pointer tip, when it reaches outside the badge. By default it's the badge's lower-right corner.
+    var stepTip: CGPoint? {
+        guard case .step(let center, let saved) = shape else { return nil }
+        let tip = saved ?? CGPoint(x: center.x + width / 2, y: center.y + width / 2)
+        guard hypot(tip.x - center.x, tip.y - center.y) > width / 2 + 1 else { return nil }
+        return tip
+    }
+
     /// What this annotation covers once drawn (line width, arrow heads), for growing the canvas.
     /// Blur and spotlight only act on the image, so they never grow it.
     var drawnBounds: CGRect {
@@ -336,7 +356,7 @@ extension Annotation {
         case .arrow: bounds.insetBy(dx: -(max(width * 1.8, 8) + 2), dy: -(max(width * 1.8, 8) + 2))
         case .text: bounds.insetBy(dx: -3, dy: -3)
         case .image: bounds
-        case .step: bounds.insetBy(dx: -2, dy: -2)
+        case .step: (stepTip.map { bounds.union(CGRect(origin: $0, size: .zero)) } ?? bounds).insetBy(dx: -2, dy: -2)
         case .stroke, .rectangle, .ellipse, .magnifier: bounds.insetBy(dx: -(width / 2 + 2), dy: -(width / 2 + 2))
         }
     }

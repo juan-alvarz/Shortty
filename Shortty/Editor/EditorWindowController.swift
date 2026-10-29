@@ -204,7 +204,7 @@ final class EditorWindowController: NSWindowController {
             return true
         }
 
-        let hasSelection = model.selection != nil
+        let hasSelection = model.selection != nil || !model.group.isEmpty
         let step: CGFloat = flags.contains(.shift) ? 10 : 1
         switch Int(event.keyCode) {
         case kVK_Escape where doubleEscape:

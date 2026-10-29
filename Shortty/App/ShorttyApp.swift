@@ -47,6 +47,8 @@ private struct CaptureMenu: View {
         item(.reopen)
             .disabled(!EditorWindowController.shared.canReopen)
         Divider()
+        // shortcut: points at the GitHub repo until the landing page is live, then swap the URL.
+        Link("Shortty Website", destination: URL(string: "https://github.com/juan-alvarz/Shortty")!)
         Button("Settings…") {
             NSApp.activate(ignoringOtherApps: true)
             openSettings()

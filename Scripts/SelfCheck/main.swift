@@ -359,6 +359,14 @@ struct SelfCheck {
         spin(0.2)
         func text() -> Annotation { model.annotations.first { $0.id == textID }! }
         if case .text(_, let string, let style, _) = text().shape { check(string == "Icon here" && style == .callout, "typing updates the callout") }
+        let gapBelow = { (annotation: Annotation) -> CGFloat in
+            guard case .text(_, _, _, let pointer) = annotation.shape else { return .nan }
+            return pointer.y - annotation.textBox!.box.maxY
+        }
+        let oneLineGap = gapBelow(text())
+        model.setText("Icon here\nsecond line\nthird")
+        check(near(gapBelow(text()), oneLineGap, 0.5) && oneLineGap > 0, "the pointer stays below the box as lines are added")
+        model.setText("Icon here")
         let pixelsPerPoint = CGFloat(image.width) / canvas.bounds.width
         let typedLayout = text().textBox!
         check(near(textEditor.frame.minX, typedLayout.textRect.minX / pixelsPerPoint, 0.5) && near(textEditor.frame.minY, typedLayout.textRect.minY / pixelsPerPoint, 0.5),
@@ -383,6 +391,19 @@ struct SelfCheck {
         check(!model.annotations.contains { $0.id == textID }, "empty text leaves no undo step")
         model.redo()
 
+        drag(CGPoint(x: 880, y: 560), CGPoint(x: 760, y: 470))
+        let aimedID = model.editingID
+        let aimedPointer = { () -> CGPoint? in
+            guard case .text(_, _, _, let pointer)? = model.annotations.first(where: { $0.id == aimedID })?.shape else { return nil }
+            return pointer
+        }
+        check(aimedID != nil && aimedPointer().map { near($0.x, 760) && near($0.y, 470) } == true, "dragging with the text tool aims the new callout, then types")
+        model.setText("Aimed\nsecond line")
+        check(aimedPointer().map { near($0.x, 760) && near($0.y, 470) } == true, "an aimed pointer stays on its target as lines are added")
+        model.endEditing()
+        model.undo()
+        check(!model.annotations.contains { $0.id == aimedID }, "one undo removes the aimed callout")
+
         let box = text().textBox!.box
         click(CGPoint(x: box.midX, y: box.midY))
         check(model.editingID == textID && find(NSTextView.self, in: canvas)?.string == "Icon here", "clicking existing text edits it")
@@ -400,16 +421,16 @@ struct SelfCheck {
         drag(pointer, CGPoint(x: pointer.x - 60, y: pointer.y + 50))
         if case .text(_, _, _, let moved) = text().shape { check(near(moved.x, pointer.x - 60) && near(moved.y, pointer.y + 50), "dragging the pointer grip re-aims the callout") }
 
-        // Pointer base: at least 1.2× the font size, wider for long pointers, never past the box edge.
+        // Pointer base with its fillets: at least 1.9× the font size, wider for long pointers, never past the box edge.
         func callout(_ tip: CGPoint) -> TextBox { TextBox(origin: CGPoint(x: 100, y: 100), string: "Pointer base", style: .callout, pointer: tip, fontSize: 28, color: Theme.accent) }
         let probe = callout(.zero).box
         func pointerBase(_ distance: CGFloat) -> CGFloat { callout(CGPoint(x: probe.midX, y: probe.maxY + distance)).pointerPath!.boundingBox.width }
-        // Rounded end, not a needle: 2.8 px before the tip the pointer is still about as wide as its rounded end.
+        // Narrow but not a needle: a ~4 px round cap whose far edge touches the target.
         let farTip = CGPoint(x: probe.midX, y: probe.maxY + 300)
         let farPointer = callout(farTip).pointerPath!
-        check(farPointer.contains(CGPoint(x: farTip.x + 2, y: farTip.y - 2.8)) && !farPointer.contains(CGPoint(x: farTip.x, y: farTip.y + 1)),
-              "callout pointer ends in a rounded tip that touches the target")
-        check(near(pointerBase(40), 33.6, 1) && pointerBase(300) > 50 && near(pointerBase(900), 67.2, 1),
+        check(farPointer.contains(CGPoint(x: farTip.x + 1.5, y: farTip.y - 2)) && !farPointer.contains(CGPoint(x: farTip.x + 5, y: farTip.y - 3))
+              && !farPointer.contains(CGPoint(x: farTip.x, y: farTip.y + 1)), "callout pointer ends in a small round point on the target")
+        check(near(pointerBase(40), 53.8, 1) && pointerBase(300) > 80 && near(pointerBase(900), 107.5, 1),
               "callout pointer base widens with length (\(Int(pointerBase(40))) / \(Int(pointerBase(300))) / \(Int(pointerBase(900))) px)")
 
         let heightBefore = text().textBox!.box.height
@@ -646,6 +667,7 @@ struct SelfCheck {
               "three clicks place steps 1, 2, 3")
         let firstStep = steps.first!
         check(same(pixel(image.rendering([firstStep]), 150 + 12, 620), firstStep.color, 10), "a step is a filled badge in its color")
+        check(same(pixel(image.rendering([firstStep]), 150 + 15, 620 + 15), firstStep.color, 10), "a new step points from its lower-right corner")
         model.select(steps[steps.startIndex + 1].id)
         model.deleteSelection()
         numbers = Annotation.stepNumbers(in: model.annotations)
@@ -658,11 +680,55 @@ struct SelfCheck {
         click(CGPoint(x: 350, y: 620))
         check(model.annotations.count == stepsBefore + 3, "clicking an existing step selects it instead of adding one")
         drag(CGPoint(x: 450, y: 620), CGPoint(x: 520, y: 560))
-        let dragged = model.annotations.last!.bounds
-        check(model.annotations.count == stepsBefore + 4 && near(dragged.midX, 520) && near(dragged.midY, 560), "a new step follows the pointer while the button is held")
+        let pointed = model.annotations.last!
+        check(model.annotations.count == stepsBefore + 4 && near(pointed.bounds.midX, 450) && pointed.stepTip.map { near($0.x, 520) && near($0.y, 560) } == true,
+              "dragging a new step pulls a pointer out of it")
+        check(same(pixel(image.rendering([pointed]), 510, 566), pointed.color, 10) && pointed.contains(CGPoint(x: 500, y: 574), tolerance: 2),
+              "the step's pointer is drawn and can be grabbed")
+        drag(CGPoint(x: 520, y: 560), CGPoint(x: 400, y: 700))
+        check(model.annotations.last!.stepTip.map { near($0.x, 400) && near($0.y, 700) } == true, "dragging the tip grip re-aims the step")
+        drag(CGPoint(x: 400, y: 700), CGPoint(x: 450, y: 620))
+        check(model.annotations.last!.stepTip == nil, "dragging the tip into the badge removes the pointer")
+        model.undo()
+        let oldStep = try! JSONDecoder().decode(Annotation.self, from: ##"{"shape":{"step":{"center":[5,5]}},"color":"#FF0000","width":36}"##.data(using: .utf8)!)
+        check(oldStep.shape == Annotation.Shape.step(center: CGPoint(x: 5, y: 5), tip: nil), "steps saved before pointers still open")
+        spin(0.3)
+        snapshot(window.contentView!, "editor-step-pointer.png")
+        model.undo()
         model.undo()
         spin(0.3)
         snapshot(window.contentView!, "editor-steps.png")
+
+        // MARK: Area selection (Select tool)
+        let sceneBefore = model.annotations
+        let areaBox = Annotation(shape: .rectangle(CGRect(x: 100, y: 100, width: 50, height: 50)), color: Theme.accent)
+        let areaArrow = Annotation(shape: .arrow(start: CGPoint(x: 300, y: 300), end: CGPoint(x: 350, y: 320), bend: 0, style: .solid), color: Theme.accent)
+        let areaPicture = Annotation(shape: .image(rect: CGRect(x: 200, y: 200, width: 30, height: 30), image: Picture(solid(10, 10, 0, 0, 1))), color: Theme.accent)
+        let areaFar = Annotation(shape: .rectangle(CGRect(x: 700, y: 500, width: 40, height: 40)), color: Theme.accent)
+        model.annotations = [areaBox, areaArrow, areaPicture, areaFar]
+        model.tool = .select
+        model.select(nil)
+        drag(CGPoint(x: 80, y: 80), CGPoint(x: 400, y: 400))
+        check(model.group == [areaBox.id, areaArrow.id] && model.selection == nil && model.marqueeBox == nil,
+              "dragging over empty space selects the annotations there, not pictures")
+        snapshot(window.contentView!, "editor-area-selection.png")
+        drag(CGPoint(x: 100, y: 125), CGPoint(x: 120, y: 135))
+        let movedBox = model.annotations.first { $0.id == areaBox.id }!.bounds, movedPicture = model.annotations.first { $0.id == areaPicture.id }!.bounds
+        check(near(movedBox.minX, 120) && near(movedBox.minY, 110) && near(movedPicture.minX, 200)
+              && model.annotations.first { $0.id == areaArrow.id }!.bounds.minX > 310, "dragging one of them moves the whole group")
+        model.setColor(Theme.palette[2])
+        check(model.annotations.filter { model.group.contains($0.id) }.allSatisfy { $0.color.hex == Theme.palette[2].hex }
+              && model.annotations.first { $0.id == areaFar.id }!.color.hex == Theme.accent.hex, "picking a color recolors the group")
+        model.undo()
+        model.deleteSelection()
+        check(model.annotations.map(\.id) == [areaPicture.id, areaFar.id] && model.group.isEmpty, "delete removes the whole group")
+        model.undo()
+        model.undo()
+        check(model.annotations.first { $0.id == areaBox.id }!.bounds.minX == 100, "undo puts the group back where it was")
+        drag(CGPoint(x: 680, y: 480), CGPoint(x: 760, y: 560))
+        check(model.selection == areaFar.id && model.group.isEmpty, "an area with one annotation just selects it")
+        model.select(nil)
+        model.annotations = sceneBefore
 
         // MARK: Text Card (drag)
         model.select(nil)
@@ -1207,6 +1273,12 @@ struct SelfCheck {
         generalWindow.orderFrontRegardless()
         spin(0.5)
         snapshot(general, "settings-general.png")
+        let about = NSHostingView(rootView: AboutSettingsView().frame(width: 460))
+        generalWindow.setContentSize(about.fittingSize)
+        generalWindow.contentView = about
+        generalWindow.orderFrontRegardless()
+        spin(0.3)
+        snapshot(about, "settings-about.png")
         generalWindow.close()
         let sizes = [16, 32, 128, 256, 512].flatMap { p in [("icon_\(p)x\(p)", p), ("icon_\(p)x\(p)@2x", 2 * p)] }
         check(sizes.allSatisfy { size in // the self-check runs from the repo root
