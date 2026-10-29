@@ -25,10 +25,11 @@ enum ImageExport {
     }
 
     /// A PNG in a temporary folder for drag and drop, so nothing lands in Downloads. Replaces the previous one.
+    static let temporaryFolder = FileManager.default.temporaryDirectory.appendingPathComponent("Shortty Drag", isDirectory: true)
+
     static func temporaryFile(_ image: CGImage) throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Shortty Drag", isDirectory: true)
-        try? FileManager.default.removeItem(at: folder)
-        return try save(image, to: folder)
+        try? FileManager.default.removeItem(at: temporaryFolder)
+        return try save(image, to: temporaryFolder)
     }
 
     static func writePNG(_ image: CGImage, to url: URL) throws {

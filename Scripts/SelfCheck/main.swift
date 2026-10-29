@@ -391,15 +391,15 @@ struct SelfCheck {
         check(!model.annotations.contains { $0.id == textID }, "empty text leaves no undo step")
         model.redo()
 
-        drag(CGPoint(x: 880, y: 560), CGPoint(x: 760, y: 470))
+        drag(CGPoint(x: 880, y: 560), CGPoint(x: 900, y: 605)) // aimed just under the box, where the default pointer sits
         let aimedID = model.editingID
         let aimedPointer = { () -> CGPoint? in
             guard case .text(_, _, _, let pointer)? = model.annotations.first(where: { $0.id == aimedID })?.shape else { return nil }
             return pointer
         }
-        check(aimedID != nil && aimedPointer().map { near($0.x, 760) && near($0.y, 470) } == true, "dragging with the text tool aims the new callout, then types")
+        check(aimedID != nil && aimedPointer().map { near($0.x, 900) && near($0.y, 605) } == true, "dragging with the text tool aims the new callout, then types")
         model.setText("Aimed\nsecond line")
-        check(aimedPointer().map { near($0.x, 760) && near($0.y, 470) } == true, "an aimed pointer stays on its target as lines are added")
+        check(aimedPointer().map { near($0.x, 900) && near($0.y, 605) } == true, "an aimed pointer stays on its target as lines are added")
         model.endEditing()
         model.undo()
         check(!model.annotations.contains { $0.id == aimedID }, "one undo removes the aimed callout")
@@ -1071,6 +1071,28 @@ struct SelfCheck {
         UserDefaults.standard.set(true, forKey: HistoryStrip.expandedKey)
         spin(0.4)
         check(HistoryStrip.height(for: history) == HistoryStrip.expandedHeight, "opened, the strip shows the thumbnails")
+        let stripItems = (0..<4).map { URL(fileURLWithPath: "/tmp/capture-\($0).png") }
+        check(HistoryStrip.dragged(stripItems[2], picked: [stripItems[3], stripItems[0], stripItems[2]], in: stripItems) == [stripItems[0], stripItems[2], stripItems[3]]
+              && HistoryStrip.dragged(stripItems[1], picked: [stripItems[0]], in: stripItems) == [stripItems[1]],
+              "dragging a ⌘-picked capture carries all picked ones in order; any other carries just itself")
+        func dragSources(in view: NSView) -> [DragSourceView] { (view as? DragSourceView).map { [$0] } ?? view.subviews.flatMap(dragSources) }
+        let thumbs = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
+        func commandClick(_ thumb: DragSourceView, _ flags: NSEvent.ModifierFlags = .command) { // with a 1 pt wobble, like a real hand
+            for (type, dx) in [(NSEvent.EventType.leftMouseDown, 0.0), (.leftMouseDragged, 1), (.leftMouseUp, 1)] {
+                let event = NSEvent.mouseEvent(with: type, location: thumb.convert(CGPoint(x: thumb.bounds.midX + dx, y: thumb.bounds.midY), to: nil), modifierFlags: flags,
+                                               timestamp: 0, windowNumber: layoutWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+                layoutWindow.sendEvent(event) // through the window, like a real click, so anything in the way would catch it
+            }
+            spin(0.2)
+        }
+        if thumbs.count >= 3 {
+            thumbs[0...2].forEach { commandClick($0) }
+            let pickedThree = thumbs[1].files().count
+            commandClick(thumbs[0])
+            check(pickedThree == 3 && thumbs[1].files().count == 2 && thumbs[0].files().count == 1, "⌘-click picks captures, and again unpicks one (\(pickedThree), \(thumbs[1].files().count))")
+            commandClick(thumbs[3], [])
+            check(layoutModel.sourceFile == history.items[3] && thumbs[1].files().count == 1, "a plain click opens that capture and lets go of the picked ones (\(layoutModel.sourceFile?.lastPathComponent ?? "nil") vs \(history.items[3].lastPathComponent), \(thumbs[1].files().count))")
+        }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
         layoutWindow.close()

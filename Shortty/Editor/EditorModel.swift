@@ -267,10 +267,10 @@ final class EditorModel {
         guard let i = annotations.firstIndex(where: { $0.id == editingID }),
               case .text(let origin, _, let style, var pointer) = annotations[i].shape, let oldBox = annotations[i].textBox?.box else { return }
         annotations[i].shape = .text(origin: origin, string: string, style: style, pointer: pointer)
-        // A pointer just below the box (the default one) stays the same distance under it as lines are added or removed;
-        // one aimed further away stays on its target.
-        if pointer.y >= oldBox.maxY, pointer.y - oldBox.maxY <= annotations[i].width * 1.2, let newBox = annotations[i].textBox?.box {
-            pointer.y += newBox.maxY - oldBox.maxY
+        // The default pointer stays under the box as lines are added or removed; an aimed one stays on its target.
+        let fontSize = annotations[i].width, oldDefault = TextBox.defaultPointer(below: oldBox, fontSize: fontSize)
+        if hypot(pointer.x - oldDefault.x, pointer.y - oldDefault.y) < 0.5, let newBox = annotations[i].textBox?.box {
+            pointer = TextBox.defaultPointer(below: newBox, fontSize: fontSize)
             annotations[i].shape = .text(origin: origin, string: string, style: style, pointer: pointer)
         }
     }

@@ -33,6 +33,11 @@ struct TextBox {
         pointerPath = style == .callout ? Self.pointerPath(box: box, tip: pointer, fontSize: fontSize, cornerRadius: cornerRadius) : nil
     }
 
+    /// Where a callout points until it's aimed: just below-left of the box, like a speech bubble.
+    static func defaultPointer(below box: CGRect, fontSize: CGFloat) -> CGPoint {
+        CGPoint(x: box.minX + fontSize * 0.6, y: box.maxY + fontSize * 0.8)
+    }
+
     /// Space between the text and the box edge; the canvas uses it to put the caret where the user clicked.
     static func padding(style: TextStyle, fontSize: CGFloat) -> CGSize {
         style == .plain ? .zero : CGSize(width: (fontSize * 0.45).rounded(), height: (fontSize * 0.28).rounded())

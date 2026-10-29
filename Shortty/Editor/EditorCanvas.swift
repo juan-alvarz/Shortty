@@ -54,10 +54,12 @@ final class CanvasScrollView: NSScrollView {
         return model.insertImages(from: sender.draggingPasteboard, centeredAt: canvas.imagePoint(inWindow: sender.draggingLocation)) > 0
     }
 
-    /// Image files or image data, but not our own drag handle (that's the editor's own picture).
+    /// Image files or image data, but not our own drag handle (that's the editor's own picture, as a temporary file).
+    /// Recent captures dragged from the strip are welcome: they come in as pictures.
     private func dropOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if sender.draggingSource is DragSourceView { return [] }
         let board = sender.draggingPasteboard
+        let files = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        if sender.draggingSource is DragSourceView, files.contains(where: { $0.path.hasPrefix(ImageExport.temporaryFolder.path) }) { return [] }
         let imageFiles: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier]]
         return board.canReadObject(forClasses: [NSURL.self], options: imageFiles) || board.canReadObject(forClasses: [NSImage.self]) ? .copy : []
     }
@@ -546,7 +548,8 @@ private final class CanvasView: NSView {
         let fontSize = model.width(for: .text)
         let padding = TextBox.padding(style: model.textStyle, fontSize: fontSize)
         let origin = CGPoint(x: point.x - padding.width, y: point.y - padding.height - fontSize * 0.6)
-        let pointer = CGPoint(x: origin.x + fontSize * 0.6, y: origin.y + fontSize * 2.6) // just below-left, like a speech bubble
+        let box = TextBox(origin: origin, string: "", style: model.textStyle, pointer: .zero, fontSize: fontSize, color: model.color).box
+        let pointer = TextBox.defaultPointer(below: box, fontSize: fontSize)
         let annotation = Annotation(shape: .text(origin: origin, string: "", style: model.textStyle, pointer: pointer),
                                     color: model.color, width: fontSize)
         let before = model.annotations

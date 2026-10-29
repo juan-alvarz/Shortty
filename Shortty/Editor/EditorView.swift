@@ -379,7 +379,8 @@ private struct SelectionBar: View {
 // MARK: - History strip
 
 /// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it,
-/// drag one into any app, × deletes one, the trash deletes them all. Remembers whether it's open.
+/// ⌘-click to pick several, drag one (or the picked ones) into any app, × deletes one, the trash deletes them all.
+/// Remembers whether it's open.
 struct HistoryStrip: View {
     static let expandedKey = "historyExpanded"
     static let foldedHeight: CGFloat = 26
@@ -389,6 +390,12 @@ struct HistoryStrip: View {
     let history: CaptureHistory
     @AppStorage(expandedKey) private var expanded = false
     @State private var confirmingClear = false
+    @State private var picked: Set<URL> = []
+
+    /// What a drag from `url` carries: every picked capture (in strip order) when it's one of them, else just it.
+    static func dragged(_ url: URL, picked: Set<URL>, in items: [URL]) -> [URL] {
+        picked.contains(url) ? items.filter(picked.contains) : [url]
+    }
 
     var body: some View {
         Group {
@@ -427,9 +434,14 @@ struct HistoryStrip: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(history.items, id: \.self) { url in
-                        HistoryThumb(url: url, current: url == model.sourceFile, revision: url == model.sourceFile ? model.savedRevision : 0) {
+                        HistoryThumb(url: url, current: url == model.sourceFile, picked: picked.contains(url),
+                                     revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
+                            if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
+                            picked = []
                             guard let image = CGImage.load(from: url) else { return history.remove(url) }
                             model.load(image, from: url)
+                        } dragged: {
+                            Self.dragged(url, picked: picked, in: history.items)
                         } remove: {
                             history.remove(url)
                         }
@@ -467,8 +479,10 @@ struct HistoryStrip: View {
 private struct HistoryThumb: View {
     let url: URL
     let current: Bool
+    let picked: Bool
     let revision: Int
-    let open: () -> Void
+    let click: (NSEvent.ModifierFlags) -> Void
+    let dragged: () -> [URL]
     let remove: () -> Void
     @State private var thumbnail: CGImage?
     @State private var hovering = false
@@ -486,10 +500,8 @@ private struct HistoryThumb: View {
                 .frame(width: 84, height: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
                 .overlay(RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12), lineWidth: current ? 2 : 1))
-                .contentShape(Rectangle())
-                .onTapGesture(perform: open)
-                .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
+                    .strokeBorder(current ? Theme.accent : .white.opacity(picked ? 1 : hovering ? 0.45 : 0.12), lineWidth: current || picked ? 2 : 1))
+                .overlay(DragSource(onClick: click, onHover: { hovering = $0 }, files: dragged))
                 if hovering {
                     Button(action: remove) {
                         Icon(kind: .close, size: 10)
@@ -504,8 +516,7 @@ private struct HistoryThumb: View {
             }
             Text(age).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(.white.opacity(0.45))
         }
-        .onHover { hovering = $0 }
-        .help("Click to open, drag into any app")
+        .help("Click to open, ⌘-click to pick several, drag into any app")
         .task(id: "\(url.path)#\(revision)") {
             let preview = CaptureHistory.previewURL(for: url)
             thumbnail = await Task.detached(priority: .utility) {

@@ -43,7 +43,7 @@ private struct QuickCardView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: 170)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(DragSource(onClick: edit) { image })
+                .overlay(DragSource(onClick: { _ in edit() }) { (try? ImageExport.temporaryFile(image)).map { [$0] } ?? [] })
                 .help("Click to edit, or drag into any app")
             HStack(spacing: 6) {
                 PanelButton(title: "Copy") { finish(ImageExport.copiedNotice) { ImageExport.copy(image) } }
