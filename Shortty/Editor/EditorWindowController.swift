@@ -9,9 +9,10 @@ private final class EditorPanel: NSPanel {
     override var canBecomeMain: Bool { true }
 
     /// A click back into the editor after using another app: AppKit may still count it as key, so ask again.
+    /// On the way up, never down: switching the app's mode mid-press cancels the drag (a text box's aimed tail).
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown || event.type == .rightMouseDown, AppPresence.prepareForPanelFocus() { makeKey() }
         super.sendEvent(event)
+        if event.type == .leftMouseUp || event.type == .rightMouseUp, AppPresence.prepareForPanelFocus() { makeKey() }
     }
 }
 
