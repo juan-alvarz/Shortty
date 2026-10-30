@@ -397,6 +397,19 @@ struct HistoryStrip: View {
         picked.contains(url) ? items.filter(picked.contains) : [url]
     }
 
+    /// The files a drag hands over: each capture as its thumbnail shows it, edits drawn in (a temporary PNG),
+    /// or the capture's own file when it has no edits.
+    static func exported(_ captures: [URL]) -> [URL] {
+        let folder = ImageExport.temporaryFolder
+        try? FileManager.default.removeItem(at: folder) // the previous drag's files
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return captures.map { capture in
+            guard let edits = CaptureHistory.loadEdits(for: capture), let image = CGImage.load(from: capture) else { return capture }
+            let file = folder.appendingPathComponent("shortty-\(capture.lastPathComponent)")
+            return (try? ImageExport.writePNG(image.rendering(edits.annotations, crop: edits.crop), to: file)) != nil ? file : capture
+        }
+    }
+
     var body: some View {
         Group {
             if expanded { strip } else { folded }
@@ -438,10 +451,13 @@ struct HistoryStrip: View {
                                      revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
                             if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
                             picked = []
+                            guard url != model.sourceFile else { return } // already open: reloading would drop its undo history
                             guard let image = CGImage.load(from: url) else { return history.remove(url) }
                             model.load(image, from: url)
                         } dragged: {
-                            Self.dragged(url, picked: picked, in: history.items)
+                            model.endEditing()
+                            model.saveEdits() // the open capture's latest edits go along
+                            return Self.exported(Self.dragged(url, picked: picked, in: history.items))
                         } remove: {
                             history.remove(url)
                         }

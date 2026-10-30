@@ -121,7 +121,7 @@ Also in the editor:
 - **Colors**: 10 presets, R/G/B sliders, a hex field and a screen eyedropper. Each tool remembers its own thickness.
 - **Selection bar**: whatever is selected gets a small bar with its color, Duplicate, Bring to front, Send to back and Delete.
 - **Recent captures**: a slim bar along the bottom opens into the last 20 captures. Click one to keep editing it,
-  ⌘-click to pick several, drag one (or the picked ones) into any app, or delete them. Edits are saved as you work, and the thumbnails show them.
+  ⌘-click to pick several, drag one (or the picked ones) into any app with their edits, or delete them. Edits are saved as you work, and the thumbnails show them.
 - **Drag and drop**: drag the handle next to Save into any app or a website's upload box. Nothing piles up in Downloads.
 - **Pin to screen**: float the finished picture above every window. Scroll or pinch to resize, Esc to close.
 - **Insert pictures**: paste, pick files, capture a new area, or drop image files onto the canvas.

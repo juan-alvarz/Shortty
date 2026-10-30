@@ -1092,6 +1092,32 @@ struct SelfCheck {
             check(pickedThree == 3 && thumbs[1].files().count == 2 && thumbs[0].files().count == 1, "⌘-click picks captures, and again unpicks one (\(pickedThree), \(thumbs[1].files().count))")
             commandClick(thumbs[3], [])
             check(layoutModel.sourceFile == history.items[3] && thumbs[1].files().count == 1, "a plain click opens that capture and lets go of the picked ones (\(layoutModel.sourceFile?.lastPathComponent ?? "nil") vs \(history.items[3].lastPathComponent), \(thumbs[1].files().count))")
+
+            // Drags carry the edits, including ones made a moment ago (no wait for the half-second autosave).
+            let edited = history.items[3]
+            let before = layoutModel.annotations
+            layoutModel.annotations.append(Annotation(shape: .rectangle(CGRect(x: 10, y: 10, width: 40, height: 30)), color: Theme.accent, width: 6))
+            layoutModel.recordChange(from: before)
+            let draggedEdited = thumbs[3].files()
+            let editedPixel = draggedEdited.first.flatMap(CGImage.load(from:)).map { pixel($0, 10, 25) } ?? []
+            check(draggedEdited.count == 1 && draggedEdited[0] != edited && draggedEdited[0].path.contains("Shortty Drag") && same(editedPixel, Theme.accent),
+                  "dragging an edited capture hands over a PNG with its edits (\(editedPixel))")
+            check(thumbs[2].files() == [history.items[2]], "a capture with no edits is handed over as its own file")
+            commandClick(thumbs[3], [])
+            let keptCount = layoutModel.annotations.count
+            layoutModel.undo()
+            check(keptCount == before.count + 1 && layoutModel.annotations.count == before.count, "clicking the open capture keeps it and its undo history")
+            check(dragSources(in: layoutWindow.contentView!).contains(where: \.isEditorPicture) && !thumbs.contains(where: \.isEditorPicture),
+                  "the canvas refuses only the drag handle's picture; thumbnails drop in as pictures")
+
+            // Hover follows the pointer, even when the exit event never comes (a drag ending in another app).
+            let thumb = thumbs[0]
+            thumb.hover(at: thumb.convert(CGPoint(x: thumb.bounds.midX, y: thumb.bounds.midY), to: nil))
+            let hovered = thumb.hovering
+            thumb.hover(at: CGPoint(x: -500, y: -500))
+            let left = !thumb.hovering
+            thumb.hover(at: nil)
+            check(hovered && left && !thumb.hovering, "thumbnail hover follows the pointer, off when it's elsewhere")
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)

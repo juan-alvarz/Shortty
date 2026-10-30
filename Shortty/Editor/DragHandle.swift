@@ -12,7 +12,7 @@ struct DragHandle: View {
             .foregroundStyle(hovering ? Color.white : Theme.chromeText)
             .frame(width: 28, height: 28)
             .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.08 : 0)))
-            .overlay(DragSource {
+            .overlay(DragSource(isEditorPicture: true) {
                 model.endEditing()
                 return (try? ImageExport.temporaryFile(model.rendered)).map { [$0] } ?? []
             })
@@ -24,11 +24,13 @@ struct DragHandle: View {
 
 /// Drags out the image files `files` returns at the moment the drag starts; a click without a drag calls `onClick`
 /// with the modifier keys held. `onHover` comes from here because SwiftUI's hover misses enters and exits over this view.
+/// The canvas refuses drops from the `isEditorPicture` source: that's the editor's own picture.
 struct DragSource: NSViewRepresentable {
+    var isEditorPicture = false
     var onClick: ((NSEvent.ModifierFlags) -> Void)? = nil
     var onHover: ((Bool) -> Void)? = nil
     let files: () -> [URL]
-    func makeNSView(context: Context) -> DragSourceView { DragSourceView(files: files, onClick: onClick) }
+    func makeNSView(context: Context) -> DragSourceView { DragSourceView(files: files, onClick: onClick, isEditorPicture: isEditorPicture) }
     func updateNSView(_ view: DragSourceView, context: Context) { view.files = files; view.onClick = onClick; view.onHover = onHover }
 }
 
@@ -36,16 +38,19 @@ final class DragSourceView: NSView, NSDraggingSource {
     var files: () -> [URL]
     var onClick: ((NSEvent.ModifierFlags) -> Void)?
     var onHover: ((Bool) -> Void)?
+    let isEditorPicture: Bool
     /// Where the button went down on this view; nil when the press began elsewhere.
     private var downAt: CGPoint?
     private var started = false
+    private(set) var hovering = false
 
-    init(files: @escaping () -> [URL], onClick: ((NSEvent.ModifierFlags) -> Void)?) {
+    init(files: @escaping () -> [URL], onClick: ((NSEvent.ModifierFlags) -> Void)?, isEditorPicture: Bool = false) {
         self.files = files
         self.onClick = onClick
+        self.isEditorPicture = isEditorPicture
         super.init(frame: .zero)
         // Geometric, so the pointer over a button on top of this view still counts as inside.
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -53,9 +58,25 @@ final class DragSourceView: NSView, NSDraggingSource {
     override var mouseDownCanMoveWindow: Bool { false }
     /// The first click on an inactive editor works too, like the SwiftUI buttons around it.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
-    override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
-    override func mouseEntered(with event: NSEvent) { onHover?(true) }
-    override func mouseExited(with event: NSEvent) { onHover?(false) }
+    /// Cursor rects go stale when the strip scrolls; a cursor update from the tracking area doesn't.
+    override func cursorUpdate(with event: NSEvent) { NSCursor.openHand.set() }
+    override func mouseEntered(with event: NSEvent) { hover(at: event.locationInWindow) }
+    override func mouseExited(with event: NSEvent) { hover(at: event.locationInWindow) }
+    /// Enter and exit events go missing when the view moves under a still pointer (scrolling, thumbnails shifting).
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        // Deferred: this runs during layout, when SwiftUI state mustn't change.
+        Task { @MainActor [weak self] in self?.hover(at: self?.window?.mouseLocationOutsideOfEventStream) }
+    }
+
+    /// Hover from where the pointer is (window coordinates; nil: not over the window). Internal for the self-check.
+    func hover(at point: CGPoint?) {
+        let inside = point.map { visibleRect.contains(convert($0, from: nil)) } ?? false
+        guard inside != hovering else { return }
+        hovering = inside
+        onHover?(inside)
+    }
+
     override func mouseDown(with event: NSEvent) { started = false; downAt = event.locationInWindow }
     override func mouseUp(with event: NSEvent) {
         if downAt != nil, !started { onClick?(event.modifierFlags) }
@@ -83,4 +104,10 @@ final class DragSourceView: NSView, NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
+
+    /// The drag swallows the exit event, so a drop somewhere else would leave the hover on.
+    func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        downAt = nil
+        hover(at: window?.convertPoint(fromScreen: screenPoint))
+    }
 }

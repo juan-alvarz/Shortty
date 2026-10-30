@@ -58,8 +58,7 @@ final class CanvasScrollView: NSScrollView {
     /// Recent captures dragged from the strip are welcome: they come in as pictures.
     private func dropOperation(_ sender: NSDraggingInfo) -> NSDragOperation {
         let board = sender.draggingPasteboard
-        let files = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
-        if sender.draggingSource is DragSourceView, files.contains(where: { $0.path.hasPrefix(ImageExport.temporaryFolder.path) }) { return [] }
+        if (sender.draggingSource as? DragSourceView)?.isEditorPicture == true { return [] }
         let imageFiles: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true, .urlReadingContentsConformToTypes: [UTType.image.identifier]]
         return board.canReadObject(forClasses: [NSURL.self], options: imageFiles) || board.canReadObject(forClasses: [NSImage.self]) ? .copy : []
     }
