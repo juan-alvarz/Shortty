@@ -9,8 +9,6 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             ShortcutsSettingsView()
                 .tabItem { Label("Shortcuts", systemImage: "keyboard") }
-            AboutSettingsView()
-                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 460)
     }
@@ -21,6 +19,7 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
+            Section { AboutRow() }
             Section {
                 LaunchAtLoginToggle()
                 Toggle("Play sound when capturing", isOn: $settings.captureSound)
@@ -55,20 +54,23 @@ struct GeneralSettingsView: View {
     }
 }
 
-/// The app icon, name and version.
-struct AboutSettingsView: View {
+/// The app icon, name and version; the version opens its release notes.
+struct AboutRow: View {
     static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    /// Releases are tagged `v<version>` (see the publish routine).
+    static let releaseNotes = URL(string: "https://github.com/juan-alvarz/Shortty/releases/tag/v\(version)")!
 
     var body: some View {
-        VStack(spacing: 6) {
+        HStack(spacing: 12) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
-                .frame(width: 96, height: 96)
-            Text("Shortty").font(.title2.weight(.semibold))
-            Text("Version \(Self.version)").foregroundStyle(.secondary)
+                .frame(width: 48, height: 48)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Shortty").font(.headline)
+                Link("Version \(Self.version)", destination: Self.releaseNotes)
+                    .help("Release notes for this version")
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(28)
     }
 }
 

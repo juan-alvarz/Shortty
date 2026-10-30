@@ -1321,12 +1321,8 @@ struct SelfCheck {
         generalWindow.orderFrontRegardless()
         spin(0.5)
         snapshot(general, "settings-general.png")
-        let about = NSHostingView(rootView: AboutSettingsView().frame(width: 460))
-        generalWindow.setContentSize(about.fittingSize)
-        generalWindow.contentView = about
-        generalWindow.orderFrontRegardless()
-        spin(0.3)
-        snapshot(about, "settings-about.png")
+        check(AboutRow.releaseNotes.absoluteString == "https://github.com/juan-alvarz/Shortty/releases/tag/v\(AboutRow.version)",
+              "the version in General links to its release notes (\(AboutRow.releaseNotes))")
         generalWindow.close()
         let sizes = [16, 32, 128, 256, 512].flatMap { p in [("icon_\(p)x\(p)", p), ("icon_\(p)x\(p)@2x", 2 * p)] }
         check(sizes.allSatisfy { size in // the self-check runs from the repo root
