@@ -37,6 +37,13 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
 | `Design/dmg` | Disk image window background, 1× and 2× → `swift Scripts/make-dmg-background.swift` (layout shared with `make-dmg.sh`) |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
+| `openspec/specs` | One behavior contract per capability; the architecture map is in `openspec/changes/archive/*-baseline-architecture/design.md` |
+
+## Specs (OpenSpec)
+
+Behavior changes start as an OpenSpec change: `/opsx:propose` → `/opsx:apply` → `/opsx:archive` (skills in `.claude/skills`,
+`.agents/skills`). The CLI isn't installed globally; run it as `npx -y @fission-ai/openspec@1.15.0 <command>`.
+Update the README and the matching `openspec/specs/<capability>/spec.md` delta together.
 
 ## Code quality
 
