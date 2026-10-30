@@ -42,6 +42,16 @@ enum AppPresence {
         }
     }
 
+    /// A non-activating panel only takes keyboard focus while Shortty is a background (menu bar) process. Once a window
+    /// made it a regular app and another app went active, WindowServer refuses ("a foreground app can't steal keyboard
+    /// focus") and keys go to that app. Stepping back first restores the path; `windowBecameKey` makes it regular again.
+    @discardableResult
+    static func prepareForPanelFocus() -> Bool {
+        guard NSApp.activationPolicy() == .regular, !NSApp.isActive else { return false }
+        NSApp.setActivationPolicy(.accessory)
+        return true
+    }
+
     /// Titled windows (the editor, Settings), not the borderless overlays, toasts, cards and pins.
     static func isAppWindow(_ window: NSWindow) -> Bool { window.isVisible && window.styleMask.contains(.titled) }
 

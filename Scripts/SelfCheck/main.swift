@@ -1355,6 +1355,18 @@ struct SelfCheck {
         spin(1.5)
         check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
               "an open editor makes Shortty a regular app and keeps keyboard focus (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        // The editor stays open while another app is used: Shortty is regular but inactive, the state where WindowServer
+        // refuses a non-activating panel keyboard focus. It steps back to menu bar only, then takes focus again.
+        NSApp.deactivate()
+        spin(0.5)
+        let wasActive = NSApp.isActive
+        let stepped = AppPresence.prepareForPanelFocus()
+        check(wasActive || (stepped && NSApp.activationPolicy() == .accessory), "a regular but inactive Shortty steps back before a panel takes focus")
+        check(!AppPresence.prepareForPanelFocus(), "menu bar only, nothing to step back from")
+        editor.show(image)
+        spin(1.5)
+        check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
+              "after another app was active, a new capture gives the editor focus again (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
         check(editor.handle(key("w", kVK_ANSI_W, in: editorWindow, flags: .command)) && !editorWindow.isVisible, "⌘W closes the editor")
         spin(0.3)
         check(NSApp.activationPolicy() == .accessory, "closing the last window leaves only the menu bar icon")

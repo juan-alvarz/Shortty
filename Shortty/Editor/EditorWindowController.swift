@@ -7,6 +7,12 @@ import SwiftUI
 private final class EditorPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    /// A click back into the editor after using another app: AppKit may still count it as key, so ask again.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown, AppPresence.prepareForPanelFocus() { makeKey() }
+        super.sendEvent(event)
+    }
 }
 
 /// The single editor window. A new capture replaces the content instead of opening another window.
@@ -116,6 +122,7 @@ final class EditorWindowController: NSWindowController {
     /// without focus (WindowServer: "a foreground app can't steal keyboard focus"). `AppPresence` activates afterwards.
     private func present() {
         guard let window else { return }
+        AppPresence.prepareForPanelFocus()
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
     }
