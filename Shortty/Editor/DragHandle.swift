@@ -61,7 +61,7 @@ final class DragSourceView: NSView, NSDraggingSource {
     /// Cursor rects go stale when the strip scrolls; a cursor update from the tracking area doesn't.
     override func cursorUpdate(with event: NSEvent) { NSCursor.openHand.set() }
     override func mouseEntered(with event: NSEvent) { hover(at: event.locationInWindow) }
-    override func mouseExited(with event: NSEvent) { hover(at: event.locationInWindow) }
+    override func mouseExited(with event: NSEvent) { hover(at: nil) }
     /// Enter and exit events go missing when the view moves under a still pointer (scrolling, thumbnails shifting).
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -71,7 +71,8 @@ final class DragSourceView: NSView, NSDraggingSource {
 
     /// Hover from where the pointer is (window coordinates; nil: not over the window). Internal for the self-check.
     func hover(at point: CGPoint?) {
-        let inside = point.map { visibleRect.contains(convert($0, from: nil)) } ?? false
+        // Clipped to bounds: inside SwiftUI, `visibleRect` can reach far past the view (a thumbnail's spans the strip).
+        let inside = point.map { bounds.intersection(visibleRect).contains(convert($0, from: nil)) } ?? false
         guard inside != hovering else { return }
         hovering = inside
         onHover?(inside)
@@ -83,9 +84,11 @@ final class DragSourceView: NSView, NSDraggingSource {
         downAt = nil
     }
 
+    /// How far a press moves before it's a drag: a trackpad click often drifts 3–4 pt.
+    static let dragDistance: CGFloat = 6
+
     override func mouseDragged(with event: NSEvent) {
-        // A hand that shakes a little mid-click is still a click.
-        guard !started, let downAt, hypot(event.locationInWindow.x - downAt.x, event.locationInWindow.y - downAt.y) >= 3 else { return }
+        guard !started, let downAt, hypot(event.locationInWindow.x - downAt.x, event.locationInWindow.y - downAt.y) >= Self.dragDistance else { return }
         started = true
         let point = convert(event.locationInWindow, from: nil)
         // Several files fan out a little, so the drag shows how many there are.
@@ -99,15 +102,22 @@ final class DragSourceView: NSView, NSDraggingSource {
                                   contents: NSImage(cgImage: preview, size: size))
             return item
         }
-        guard !items.isEmpty else { return }
-        beginDraggingSession(with: items, event: event, source: self)
+        guard !items.isEmpty else { return started = false } // nothing to drag: the release is still a click
+        // A failed drag otherwise slides back for a moment, swallowing the next clicks.
+        beginDraggingSession(with: items, event: event, source: self).animatesToStartingPositionsOnCancelOrFail = false
     }
 
     func draggingSession(_ session: NSDraggingSession, sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation { .copy }
 
-    /// The drag swallows the exit event, so a drop somewhere else would leave the hover on.
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        dragEnded(at: window?.convertPoint(fromScreen: screenPoint), dropped: operation != [])
+    }
+
+    /// The drag swallows the exit event, so the hover follows where it ended. Released back on this view without
+    /// a drop, it was a wobbly click. Internal for the self-check (a drag session can't be faked).
+    func dragEnded(at point: CGPoint?, dropped: Bool) {
         downAt = nil
-        hover(at: window?.convertPoint(fromScreen: screenPoint))
+        hover(at: point)
+        if !dropped, hovering { onClick?(NSEvent.modifierFlags) }
     }
 }

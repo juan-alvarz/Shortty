@@ -516,7 +516,8 @@ private struct HistoryThumb: View {
                 .frame(width: 84, height: 50)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
                 .overlay(RoundedRectangle(cornerRadius: 5)
-                    .strokeBorder(current ? Theme.accent : .white.opacity(picked ? 1 : hovering ? 0.45 : 0.12), lineWidth: current || picked ? 2 : 1))
+                    // Picked wins over current, so ⌘-clicking the open capture shows it's picked.
+                    .strokeBorder(picked ? .white : current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12), lineWidth: current || picked ? 2 : 1))
                 .overlay(DragSource(onClick: click, onHover: { hovering = $0 }, files: dragged))
                 if hovering {
                     Button(action: remove) {

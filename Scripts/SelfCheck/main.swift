@@ -1118,6 +1118,41 @@ struct SelfCheck {
             let left = !thumb.hovering
             thumb.hover(at: nil)
             check(hovered && left && !thumb.hovering, "thumbnail hover follows the pointer, off when it's elsewhere")
+
+            // Sweeping the pointer across the strip, with the enter and exit events a real pointer sends.
+            let swept = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
+            func crossing(_ type: NSEvent.EventType, _ view: DragSourceView, _ local: CGPoint) -> NSEvent {
+                NSEvent.enterExitEvent(with: type, location: view.convert(local, to: nil), modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                       context: nil, eventNumber: 0, trackingNumber: 0, userData: nil)!
+            }
+            for view in swept {
+                view.mouseEntered(with: crossing(.mouseEntered, view, CGPoint(x: 1, y: view.bounds.midY)))
+                view.mouseExited(with: crossing(.mouseExited, view, CGPoint(x: view.bounds.maxX + 1, y: view.bounds.midY)))
+            }
+            spin(0.1)
+            check(!swept.contains(where: \.hovering), "hovering across the strip leaves no thumbnail showing its ×")
+
+            // Real presses drift; up to the drag distance they're still clicks.
+            var lostClicks: [CGFloat] = []
+            for (index, drift) in [(1, 1.0), (2, 3.0), (1, 4.0), (2, 5.0)] {
+                let target = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }[index]
+                let center = target.convert(CGPoint(x: target.bounds.midX, y: target.bounds.midY), to: nil)
+                for (type, dx) in [(NSEvent.EventType.leftMouseDown, 0.0), (.leftMouseDragged, drift), (.leftMouseUp, drift)] {
+                    layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: CGPoint(x: center.x + dx, y: center.y), modifierFlags: [], timestamp: 0,
+                                                              windowNumber: layoutWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+                }
+                spin(0.1)
+                if layoutModel.sourceFile != history.items[index] { lostClicks.append(drift) }
+            }
+            check(lostClicks.isEmpty, "a click that drifts up to 5 pt still opens the capture (lost at \(lostClicks) pt)")
+            let wobbled = swept[1]
+            wobbled.dragEnded(at: wobbled.convert(CGPoint(x: wobbled.bounds.midX, y: wobbled.bounds.midY), to: nil), dropped: false)
+            spin(0.1)
+            let openedByWobble = layoutModel.sourceFile == history.items[1]
+            swept[3].dragEnded(at: CGPoint(x: -500, y: -500), dropped: false)
+            spin(0.1)
+            check(openedByWobble && layoutModel.sourceFile == history.items[1] && !swept[3].hovering,
+                  "a drag released back on its thumbnail opens it; one released elsewhere does nothing")
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
