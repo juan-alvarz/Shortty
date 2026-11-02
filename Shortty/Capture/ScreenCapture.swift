@@ -98,8 +98,12 @@ enum ScreenCapture {
     /// Without Screen Recording, captures come back blank. Ask once via the system prompt;
     /// after that macOS never re-prompts, so send the user straight to the settings pane.
     static func hasPermission() -> Bool {
-        if CGPreflightScreenCaptureAccess() { return true }
         let askedKey = "didRequestScreenCapture"
+        // A grant that later stops matching (new signing cert, tccutil reset) must be asked for again, not dead-end in Settings.
+        if CGPreflightScreenCaptureAccess() {
+            UserDefaults.standard.removeObject(forKey: askedKey)
+            return true
+        }
         if !UserDefaults.standard.bool(forKey: askedKey) {
             UserDefaults.standard.set(true, forKey: askedKey)
             return CGRequestScreenCaptureAccess()
