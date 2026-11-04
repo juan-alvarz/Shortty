@@ -452,7 +452,7 @@ struct HistoryStrip: View {
                             if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
                             picked = []
                             guard url != model.sourceFile else { return } // already open: reloading would drop its undo history
-                            guard let image = CGImage.load(from: url) else { return history.remove(url) }
+                            guard let image = CGImage.load(from: url) else { return } // the thumb shows it's unreadable; × removes it
                             model.load(image, from: url)
                         } dragged: {
                             model.endEditing()
@@ -501,6 +501,8 @@ private struct HistoryThumb: View {
     let dragged: () -> [URL]
     let remove: () -> Void
     @State private var thumbnail: CGImage?
+    /// The capture's file is gone or can't be read: marked, and only × does anything.
+    @State private var broken = false
     @State private var hovering = false
 
     var body: some View {
@@ -514,12 +516,22 @@ private struct HistoryThumb: View {
                     }
                 }
                 .frame(width: 84, height: 50)
+                .overlay {
+                    if broken {
+                        Text("!")
+                            .font(.system(size: 13, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .frame(width: 20, height: 20)
+                            .background(Circle().fill(Theme.palette[1]))
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: 5))
                 .overlay(RoundedRectangle(cornerRadius: 5)
                     // Picked wins over current, so ⌘-clicking the open capture shows it's picked.
-                    .strokeBorder(picked ? .white : current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12), lineWidth: current || picked ? 2 : 1))
-                .overlay(DragSource(onClick: click, onHover: { hovering = $0 }, files: dragged))
-                if hovering {
+                    .strokeBorder(broken ? Theme.palette[1] : picked ? .white : current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12),
+                                  lineWidth: current || picked || broken ? 2 : 1))
+                .overlay(DragSource(onClick: broken ? nil : click, onHover: { hovering = $0 }, files: { broken ? [] : dragged() }))
+                if hovering || broken {
                     Button(action: remove) {
                         Icon(kind: .close, size: 10)
                             .foregroundStyle(.white)
@@ -533,11 +545,12 @@ private struct HistoryThumb: View {
             }
             Text(age).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(.white.opacity(0.45))
         }
-        .help("Click to open, ⌘-click to pick several, drag into any app")
+        .help(broken ? "This capture's file can't be read. × deletes it" : "Click to open, ⌘-click to pick several, drag into any app")
         .task(id: "\(url.path)#\(revision)") {
             let preview = CaptureHistory.previewURL(for: url)
-            thumbnail = await Task.detached(priority: .utility) {
-                CaptureHistory.thumbnail(of: FileManager.default.fileExists(atPath: preview.path) ? preview : url, maxPixels: 200)
+            (thumbnail, broken) = await Task.detached(priority: .utility) {
+                let thumbnail = CaptureHistory.thumbnail(of: FileManager.default.fileExists(atPath: preview.path) ? preview : url, maxPixels: 200)
+                return (thumbnail, !CaptureHistory.isReadable(url))
             }.value
         }
     }

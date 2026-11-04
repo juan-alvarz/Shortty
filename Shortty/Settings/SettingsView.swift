@@ -154,20 +154,41 @@ private struct SaveFolderRow: View {
     }
 }
 
-/// The history strip, and a way to delete what it keeps.
+/// The history strip, how many captures it keeps, and a way to delete them.
 private struct RecentCapturesRow: View {
     @Binding var isOn: Bool
+    @Bindable private var settings = AppSettings.shared
     private let history = CaptureHistory.shared
 
     var body: some View {
         Toggle(isOn: $isOn) {
             Text("Show recent captures")
-            Text("Keeps your last \(CaptureHistory.limit) captures for reopening and dragging out.")
+            Text("Keeps your last \(settings.historyLimit) captures for reopening and dragging out.")
+        }
+        LabeledContent {
+            limitField
+        } label: {
+            Text("Keep")
+            Text("Up to \(AppSettings.historyLimitRange.upperBound). Fewer removes the oldest with your next capture.")
         }
         LabeledContent("\(history.items.count) kept") {
             Button("Delete All", role: .destructive) { history.removeAll() }
                 .disabled(history.items.isEmpty)
         }
+    }
+
+    /// Saves on Return or when you leave the field, clamped to 1–50; anything that isn't a number snaps back.
+    private var limitField: some View {
+        let range = AppSettings.historyLimitRange
+        return HStack(spacing: 6) {
+            TextField("", value: Binding(get: { settings.historyLimit }, set: { settings.historyLimit = $0.clamped(to: range) }), format: .number)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 44)
+            Text("captures").foregroundStyle(.secondary)
+        }
+        .help("Between \(range.lowerBound) and \(range.upperBound) captures")
     }
 }
 

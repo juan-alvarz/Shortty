@@ -9,7 +9,7 @@ dark chrome, custom line icons, no SF Symbols in the editor UI.
 ```bash
 xcodegen generate          # after adding/removing/renaming files. project.yml is the source; never edit Shortty.xcodeproj
 Scripts/selfcheck.sh /tmp/shots   # drives the real editor views; prints PASS/FAIL; PNG snapshots go to the dir if given
-Scripts/install.sh         # Release build → /Applications/Shortty.app, launch (--profile-only: ~/Applications)
+Scripts/install.sh         # Release build → /Applications/Shortty.app, launch (one copy for all accounts)
 Scripts/make-dmg.sh        # Release build → build/Shortty-X.Y.Z.dmg with the styled install window
 ```
 
@@ -29,7 +29,7 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | Path | What lives there |
 |---|---|
 | `Shortty/App` | Entry point and menu bar menu, `AppDelegate` + `AppPresence` (regular app while a titled window is open, menu bar only otherwise), `AppSettings` (UserDefaults-backed, `@Observable`) |
-| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`), `CaptureHistory` (last 20 captures in Caches, each with its saved edits as `<capture>.json`; reopen and the history strip), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
+| `Shortty/Capture` | `CaptureAction` (menu items + shortcut defaults), `CaptureController` (lazy countdown flow), `ScreenCapture` (`/usr/sbin/screencapture`), `CaptureHistory` (recent captures in Caches, 20 by default and up to 50, each with its saved edits as `<capture>.json`; reopen and the history strip), `RegionSelector` (area-picking overlay + countdown outline + `OverlayPanel`, the borderless panel the toast, scroll HUD and pin window share), `ScrollCapture` (session + panel), `ScrollStitcher` (frame stitching, pure and tested), `TextCapture` (text/QR to clipboard), `FloatingToast` (notice without the editor) |
 | `Shortty/Hotkey` | `Hotkey` value type, `HotkeyManager` (Carbon global hotkeys, no Accessibility permission needed) |
 | `Shortty/Editor` | `EditorModel` (state, undo), `Annotation` (shapes, hit test, transforms, drawing), `Arrow` (curve + 4 styles), `Text` (`TextBox` layout shared by drawing, hit test and editor), `Effects` (blur/erase, spotlight dim, magnifier), `Ruler` (same-color runs through a pixel, for the Ruler tool), `TextRecognition` (Vision line boxes for Blur Text; Text Card's colored lines), `TextCard` + `TextCardPanel` (draw the card; tune it in a sheet before it opens as a new capture), `DragHandle`, `PinWindow`, `Backdrop` (gradient card), `EditorCanvas` (NSScrollView zoom + mouse state machine + inline text editor + Live Text overlay), `EditorView` (the four layouts from shared parts: tool/output buttons, `ToolOptions`, color and backdrop pickers, selection bar, history strip), `QuickCard` (after-capture card), `Icons`, `Theme` |
 | `Shortty/Settings` | Settings tabs and the shortcut recorder |
@@ -37,13 +37,18 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
 | `Design/dmg` | Disk image window background, 1× and 2× → `swift Scripts/make-dmg-background.swift` (layout shared with `make-dmg.sh`) |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
-| `openspec/specs` | One behavior contract per capability; the architecture map is in `openspec/changes/archive/*-baseline-architecture/design.md` |
+| `docs/memory` | Project memory: `decisions.md`, `known-issues.md`, `changelog-notes.md` |
 
-## Specs (OpenSpec)
+## Project memory
 
-Behavior changes start as an OpenSpec change: `/opsx:propose` → `/opsx:apply` → `/opsx:archive` (skills in `.claude/skills`,
-`.agents/skills`). The CLI isn't installed globally; run it as `npx -y @fission-ai/openspec@1.15.0 <command>`.
-Update the README and the matching `openspec/specs/<capability>/spec.md` delta together.
+- Read `docs/memory/` before starting any non-trivial change.
+- After a critical change, a decision (including a rejected approach), or a bug that persists or was hard to find, add an
+  entry to the matching file in the same commit.
+- Update or mark entries that become wrong. Never leave a stale one.
+- Don't record what the code, tests or git log already make obvious.
+- Real-device behavior wins over specs: an issue is fixed only after it has been checked in the running app, not
+  because the tests pass.
+- User-visible behavior is documented in the README; update it with the change.
 
 ## Code quality
 

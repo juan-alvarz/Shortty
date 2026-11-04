@@ -2,15 +2,13 @@ import AppKit
 import ImageIO
 import Observation
 
-/// Recent captures as PNG files in Caches, newest first, at most `limit`. The newest is what
+/// Recent captures as PNG files in Caches, newest first, at most `AppSettings.historyLimit`. The newest is what
 /// "Reopen Last Capture" opens after a relaunch; the editor's history strip shows them all.
 @Observable
 final class CaptureHistory {
     static let shared = CaptureHistory(folder: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent(Bundle.main.bundleIdentifier ?? "Shortty", isDirectory: true)
         .appendingPathComponent("History", isDirectory: true))
-    static let limit = 20
-
     let folder: URL
     /// Newest first. File names are timestamps, so sorting by name sorts by time.
     private(set) var items: [URL]
@@ -90,6 +88,11 @@ final class CaptureHistory {
     /// When the file was captured (from its name), for the strip's labels.
     static func date(of url: URL) -> Date? { nameFormatter.date(from: String(url.deletingPathExtension().lastPathComponent.prefix(19))) }
 
+    /// False when the capture's file is gone or isn't an image (only its header is read).
+    nonisolated static func isReadable(_ url: URL) -> Bool {
+        CGImageSourceCreateWithURL(url as CFURL, nil).map { CGImageSourceGetCount($0) > 0 } ?? false
+    }
+
     /// A small preview, decoded off the main thread by the caller.
     nonisolated static func thumbnail(of url: URL, maxPixels: Int) -> CGImage? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
@@ -100,7 +103,7 @@ final class CaptureHistory {
 
     private func add(_ url: URL) {
         items.insert(url, at: 0)
-        while items.count > Self.limit { remove(items[items.count - 1]) }
+        while items.count > AppSettings.shared.historyLimit { remove(items[items.count - 1]) }
     }
 
     private static let nameFormatter: DateFormatter = {

@@ -305,9 +305,9 @@ final class EditorModel {
         updateSelection(undoable: undoable) { $0.color = newColor }
     }
 
-    /// Picks every annotation touching `area` except pictures: one becomes the selection, several the group.
+    /// Picks every annotation lying entirely inside `area`: one becomes the selection, several the group.
     func selectGroup(in area: CGRect) {
-        let picked = annotations.filter { !$0.isImage && $0.bounds.insetBy(dx: -1, dy: -1).intersects(area) }.map(\.id)
+        let picked = annotations.filter { area.contains($0.bounds) }.map(\.id)
         select(picked.count == 1 ? picked[0] : nil)
         if picked.count > 1 { group = Set(picked) }
     }
