@@ -64,9 +64,8 @@ cd Shortty
 Scripts/install.sh
 ```
 
-`install.sh` builds Shortty, installs it to `/Applications/Shortty.app` and opens it (`--profile-only` installs to
-`~/Applications` instead, just for your account, with no admin rights needed). The first run also creates a
-free local code-signing certificate ("Shortty Dev") in your login keychain, and macOS asks for your login password
+`install.sh` builds Shortty, installs it to `/Applications/Shortty.app` (one copy for every account) and opens it.
+The first run also creates a free local code-signing certificate ("Shortty Dev") in your login keychain, and macOS asks for your login password
 once to trust it. That certificate is what lets macOS remember the Screen Recording permission each time you
 rebuild. To update later:
 

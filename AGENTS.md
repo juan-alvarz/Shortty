@@ -9,7 +9,7 @@ dark chrome, custom line icons, no SF Symbols in the editor UI.
 ```bash
 xcodegen generate          # after adding/removing/renaming files. project.yml is the source; never edit Shortty.xcodeproj
 Scripts/selfcheck.sh /tmp/shots   # drives the real editor views; prints PASS/FAIL; PNG snapshots go to the dir if given
-Scripts/install.sh         # Release build → /Applications/Shortty.app, launch (--profile-only: ~/Applications)
+Scripts/install.sh         # Release build → /Applications/Shortty.app, launch (one copy for all accounts)
 Scripts/make-dmg.sh        # Release build → build/Shortty-X.Y.Z.dmg with the styled install window
 ```
 
