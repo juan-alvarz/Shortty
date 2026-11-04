@@ -97,14 +97,14 @@ During a countdown the seconds show next to the menu bar icon, and the menu has 
 Every capture opens in one editor window (unless Settings → After a capture says otherwise). While it's open, Shortty is a regular app: it's in the Dock and ⌘Tab, and
 ⌘, opens its Settings. Close the window and Shortty goes back to the menu bar, still running. Everything you draw stays
 editable: select it to move it, resize it from its handles, recolor it or change its thickness. Drag over empty space to
-select several at once (pictures stay put), then move, recolor or delete them together. Copy and Save close the
+select several at once (only what's entirely inside the box, pictures included), then move, recolor or delete them together. Copy and Save close the
 editor and say where the picture went.
 
 | Tool | What it does |
 |---|---|
 | Pencil | Freehand lines. Shift draws a straight one; Shift+Control snaps it to 45° steps. |
 | Arrow | Four styles. Drag the middle handle to curve it; Shift snaps to 45°. |
-| Text | A callout (bubble with a pointer), a label (filled box) or plain letters. Click to type in place, or drag from where the text goes to what it points at. |
+| Text | A callout (bubble with a pointer), a label (filled box) or plain letters. Click to type in place, or drag from where the text goes to what it points at. With Select, double-click empty space to start text, or text to edit it. |
 | Rectangle, Ellipse | Outlines. Shift makes a square or a circle. |
 | Numbered steps | Click to drop 1, 2, 3… badges; each points from its corner; drag to aim it. Deleting one renumbers the rest. |
 | Magnifier | Drag over a small area and a 2× copy appears beside it, joined by a line. |
@@ -119,8 +119,9 @@ Also in the editor:
 
 - **Colors**: 10 presets, R/G/B sliders, a hex field and a screen eyedropper. Each tool remembers its own thickness.
 - **Selection bar**: whatever is selected gets a small bar with its color, Duplicate, Bring to front, Send to back and Delete.
-- **Recent captures**: a slim bar along the bottom opens into the last 20 captures. Click one to keep editing it,
+- **Recent captures**: a slim bar along the bottom opens into your last captures (20 unless you pick up to 50 in Settings). Click one to keep editing it,
   ⌘-click to pick several, drag one (or the picked ones) into any app with their edits, or delete them. Edits are saved as you work, and the thumbnails show them.
+  A capture whose file can't be read shows a red "!"; delete it with ×.
 - **Drag and drop**: drag the handle next to Save into any app or a website's upload box. Nothing piles up in Downloads.
 - **Pin to screen**: float the finished picture above every window. Scroll or pinch to resize, Esc to close.
 - **Insert pictures**: paste, pick files, capture a new area, or drop image files onto the canvas.
@@ -178,7 +179,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | `1` / `2` held | Ruler: measure sideways only / up and down only |
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |
 | Arrows / Shift+Arrows | Nudge the selection 1 px / 10 px |
-| `⌫` | Delete the selection |
+| `⌫` / `⌦` | Delete the selection, whatever it is |
 | `⌘D` | Duplicate the selection |
 | `⌘]` / `⌘[` | Bring the selection to the front / send it to the back |
 | `⌘Z` / `⌘⇧Z` | Undo / redo |
@@ -197,7 +198,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | Selection color | The outline while selecting an area or counting down. Follows your Mac's accent color until you pick another. |
 | Save folder | Where Save writes. Downloads unless you pick another. |
 | After a capture | What to show: the editor, a quick card in the corner of the screen with Copy, Save, Pin and Edit (drag its picture into any app, or click it to edit; it goes away on its own), or nothing but a short notice. Copy and Save also put the capture on the clipboard and in your save folder right away. Out of the box: editor + Copy. |
-| Show recent captures | The bar of recent captures in the editor. Delete All removes them from `~/Library/Caches/com.shortty.Shortty/History`. |
+| Show recent captures | The bar of recent captures in the editor. Keep sets how many (1–50, default 20); lowering it trims the oldest with the next capture. Delete All removes them from `~/Library/Caches/com.shortty.Shortty/History`. |
 
 ## Contributing
 

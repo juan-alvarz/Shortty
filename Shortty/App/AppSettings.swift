@@ -58,6 +58,13 @@ final class AppSettings {
         didSet { defaults.set(showsHistory, forKey: "showsHistory") }
     }
 
+    static let historyLimitRange = 1...50
+
+    /// How many recent captures to keep. Lowering it removes the oldest extras with the next capture, not right away.
+    var historyLimit: Int {
+        didSet { defaults.set(historyLimit, forKey: "historyLimit") }
+    }
+
     /// The outline and badge while picking an area or counting down, as "#RRGGBB". Nil follows the Mac's accent color.
     var selectionColorHex: String? {
         didSet { defaults.set(selectionColorHex, forKey: "selectionColor") }
@@ -84,6 +91,7 @@ final class AppSettings {
         copyAfterCapture = stored.object(forKey: "copyAfterCapture") as? Bool ?? true
         saveAfterCapture = stored.object(forKey: "saveAfterCapture") as? Bool ?? false
         showsHistory = stored.object(forKey: "showsHistory") as? Bool ?? true
+        historyLimit = (stored.object(forKey: "historyLimit") as? Int ?? 20).clamped(to: Self.historyLimitRange)
         selectionColorHex = stored.string(forKey: "selectionColor")
         textCardFontSize = (stored.object(forKey: "textCardFontSize") as? Double ?? 14).clamped(to: TextCard.fontSizes)
         textCardWindowBar = stored.object(forKey: "textCardWindowBar") as? Bool ?? true

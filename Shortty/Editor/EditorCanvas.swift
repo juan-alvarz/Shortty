@@ -369,13 +369,16 @@ private final class CanvasView: NSView {
         return grips(for: selected).first { hypot($0.point.x - point.x, $0.point.y - point.y) <= reach }?.grip
     }
 
-    /// Topmost annotation under the pointer. A selected box shape can also be grabbed anywhere inside its box.
+    /// Topmost annotation under the pointer. A selected box shape can also be grabbed anywhere inside its box,
+    /// except where something above it is hit (a picture on a selected picture would otherwise never get a click).
     private func annotation(at point: CGPoint) -> Annotation? {
-        if let selected = model.selectedAnnotation, selected.usesBoxHandles,
-           selected.bounds.insetBy(dx: -4 * pixelsPerScreenPoint, dy: -4 * pixelsPerScreenPoint).contains(point) {
-            return selected
+        let hit = model.annotations.lastIndex { $0.contains(point, tolerance: 5 * pixelsPerScreenPoint) }
+        if let selected = model.annotations.firstIndex(where: { $0.id == model.selection }), model.annotations[selected].usesBoxHandles,
+           model.annotations[selected].bounds.insetBy(dx: -4 * pixelsPerScreenPoint, dy: -4 * pixelsPerScreenPoint).contains(point),
+           hit.map({ $0 <= selected }) ?? true {
+            return model.annotations[selected]
         }
-        return model.annotations.last { $0.contains(point, tolerance: 5 * pixelsPerScreenPoint) }
+        return hit.map { model.annotations[$0] }
     }
 
     // MARK: Cursor
@@ -424,7 +427,7 @@ private final class CanvasView: NSView {
         } else if model.tool == .select {
             guard let hit = annotation(at: point) else {
                 model.select(nil)
-                drag = .marquee(start: point)
+                drag = event.clickCount == 2 ? startText(at: point) : .marquee(start: point)
                 return
             }
             if event.clickCount == 2, hit.tool == .text {

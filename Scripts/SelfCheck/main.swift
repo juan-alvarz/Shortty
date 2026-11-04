@@ -455,6 +455,17 @@ struct SelfCheck {
         click(CGPoint(x: selectBox.midX, y: selectBox.midY), clicks: 2)
         check(model.editingID == textID, "double-click edits text with the select tool")
         model.endEditing()
+        let emptySpot = CGPoint(x: 960, y: 610)
+        check(!model.annotations.contains { $0.contains(emptySpot, tolerance: 20) }, "the double-click spot is empty")
+        let textCount = model.annotations.count
+        click(emptySpot, clicks: 2)
+        model.setText("Hi")
+        let typed = model.editingID
+        model.endEditing()
+        check(typed != nil && model.annotations.count == textCount + 1 && model.tool == .select
+              && model.annotations.last.flatMap { if case .text(_, let string, _, _) = $0.shape { string } else { nil } } == "Hi",
+              "double-click on empty space with Select starts text there")
+        model.undo()
 
         // Samples of every variant for a visual check
         let yellow = Theme.palette[2]
@@ -705,28 +716,41 @@ struct SelfCheck {
         let areaArrow = Annotation(shape: .arrow(start: CGPoint(x: 300, y: 300), end: CGPoint(x: 350, y: 320), bend: 0, style: .solid), color: Theme.accent)
         let areaPicture = Annotation(shape: .image(rect: CGRect(x: 200, y: 200, width: 30, height: 30), image: Picture(solid(10, 10, 0, 0, 1))), color: Theme.accent)
         let areaFar = Annotation(shape: .rectangle(CGRect(x: 700, y: 500, width: 40, height: 40)), color: Theme.accent)
-        model.annotations = [areaBox, areaArrow, areaPicture, areaFar]
+        let areaHalf = Annotation(shape: .rectangle(CGRect(x: 380, y: 380, width: 60, height: 60)), color: Theme.accent)
+        model.annotations = [areaBox, areaArrow, areaPicture, areaHalf, areaFar]
         model.tool = .select
         model.select(nil)
         drag(CGPoint(x: 80, y: 80), CGPoint(x: 400, y: 400))
-        check(model.group == [areaBox.id, areaArrow.id] && model.selection == nil && model.marqueeBox == nil,
-              "dragging over empty space selects the annotations there, not pictures")
+        check(model.group == [areaBox.id, areaArrow.id, areaPicture.id] && model.selection == nil && model.marqueeBox == nil,
+              "dragging over empty space selects what lies entirely inside, pictures too, not what it only touches")
         snapshot(window.contentView!, "editor-area-selection.png")
         drag(CGPoint(x: 100, y: 125), CGPoint(x: 120, y: 135))
         let movedBox = model.annotations.first { $0.id == areaBox.id }!.bounds, movedPicture = model.annotations.first { $0.id == areaPicture.id }!.bounds
-        check(near(movedBox.minX, 120) && near(movedBox.minY, 110) && near(movedPicture.minX, 200)
+        check(near(movedBox.minX, 120) && near(movedBox.minY, 110) && near(movedPicture.minX, 220)
               && model.annotations.first { $0.id == areaArrow.id }!.bounds.minX > 310, "dragging one of them moves the whole group")
         model.setColor(Theme.palette[2])
         check(model.annotations.filter { model.group.contains($0.id) }.allSatisfy { $0.color.hex == Theme.palette[2].hex }
               && model.annotations.first { $0.id == areaFar.id }!.color.hex == Theme.accent.hex, "picking a color recolors the group")
         model.undo()
         model.deleteSelection()
-        check(model.annotations.map(\.id) == [areaPicture.id, areaFar.id] && model.group.isEmpty, "delete removes the whole group")
+        check(model.annotations.map(\.id) == [areaHalf.id, areaFar.id] && model.group.isEmpty, "delete removes the whole group")
         model.undo()
         model.undo()
         check(model.annotations.first { $0.id == areaBox.id }!.bounds.minX == 100, "undo puts the group back where it was")
         drag(CGPoint(x: 680, y: 480), CGPoint(x: 760, y: 560))
         check(model.selection == areaFar.id && model.group.isEmpty, "an area with one annotation just selects it")
+
+        // A selected picture doesn't swallow clicks on what's drawn above it
+        let bigPicture = Annotation(shape: .image(rect: CGRect(x: 100, y: 100, width: 500, height: 350), image: Picture(solid(10, 10, 0, 0, 1))), color: Theme.accent)
+        let smallPicture = Annotation(shape: .image(rect: CGRect(x: 200, y: 150, width: 60, height: 60), image: Picture(solid(10, 10, 1, 0, 0))), color: Theme.accent)
+        let below = Annotation(shape: .rectangle(CGRect(x: 400, y: 300, width: 60, height: 60)), color: Theme.accent)
+        model.annotations = [below, bigPicture, smallPicture]
+        model.select(bigPicture.id)
+        click(CGPoint(x: 230, y: 180))
+        check(model.selection == smallPicture.id, "a click on a picture above the selected one selects it")
+        model.select(bigPicture.id)
+        click(CGPoint(x: 400, y: 330))
+        check(model.selection == bigPicture.id, "the selected picture still wins over what's under it")
         model.select(nil)
         model.annotations = sceneBefore
 
@@ -983,6 +1007,25 @@ struct SelfCheck {
         check(editor.handle(key("]", kVK_ANSI_RightBracket, in: editorWindow, flags: cmd)) && editor.model.annotations.last?.id == boxA.id, "⌘] brings to front")
         check(editor.handle(key("[", kVK_ANSI_LeftBracket, in: editorWindow, flags: cmd)) && editor.model.annotations.first?.id == boxA.id, "⌘[ sends to back")
         check(editor.handle(key("d", kVK_ANSI_D, in: editorWindow, flags: cmd)) && editor.model.annotations.count == 3, "⌘D duplicates")
+        let kinds: [Annotation.Shape] = [
+            .stroke([CGPoint(x: 10, y: 10), CGPoint(x: 60, y: 40)]), .ellipse(CGRect(x: 10, y: 10, width: 50, height: 30)),
+            .arrow(start: CGPoint(x: 10, y: 10), end: CGPoint(x: 90, y: 40), bend: 0, style: .solid),
+            .text(origin: CGPoint(x: 10, y: 10), string: "Gone", style: .label, pointer: .zero),
+            .redact(rect: CGRect(x: 10, y: 10, width: 50, height: 30), style: .blur, textBoxes: []),
+            .spotlight(rect: CGRect(x: 10, y: 10, width: 50, height: 30), shape: .rectangle),
+            .magnifier(source: CGRect(x: 10, y: 10, width: 20, height: 20), target: CGRect(x: 50, y: 10, width: 40, height: 40), shape: .rectangle),
+            .image(rect: CGRect(x: 10, y: 10, width: 50, height: 30), image: Picture(solid(10, 10, 0, 1, 0))), .step(center: CGPoint(x: 30, y: 30), tip: nil),
+        ]
+        for (index, shape) in kinds.enumerated() {
+            let doomed = Annotation(shape: shape, color: Theme.accent, width: 20)
+            editor.model.annotations.append(doomed)
+            editor.model.select(doomed.id)
+            let (character, code) = index.isMultiple(of: 2) ? ("\u{7F}", kVK_Delete) : ("\u{F728}", kVK_ForwardDelete)
+            check(editor.handle(key(character, code, in: editorWindow)) && !editor.model.annotations.contains { $0.id == doomed.id },
+                  "\(code == kVK_Delete ? "⌫" : "⌦") deletes a selected \(doomed.tool)\(doomed.isImage ? " picture" : "")")
+        }
+        editor.model.group = Set(editor.model.annotations.map(\.id))
+        check(editor.handle(key("\u{7F}", kVK_Delete, in: editorWindow)) && editor.model.annotations.isEmpty, "⌫ deletes the whole group")
         editor.modifiersChanged(key("", kVK_Command, in: editorWindow, flags: cmd, type: .flagsChanged))
         check(editor.model.showsShortcutHints, "holding ⌘ shows the tool keys")
         editor.modifiersChanged(key("", kVK_Command, in: editorWindow, type: .flagsChanged))
@@ -998,20 +1041,23 @@ struct SelfCheck {
         // MARK: Capture history (a temporary folder, never the real Caches)
         let historyFolder = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-history-\(UUID().uuidString)")
         let history = CaptureHistory(folder: historyFolder)
-        for i in 0..<(CaptureHistory.limit + 2) { history.store(solid(40 + i, 30, 0.2, 0.4, 0.8)) }
+        let historyLimit = AppSettings.shared.historyLimit
+        check(historyLimit == 20, "history keeps 20 captures out of the box")
+        for i in 0..<(historyLimit + 2) { history.store(solid(40 + i, 30, 0.2, 0.4, 0.8)) }
         func pngs() -> Int { ((try? FileManager.default.contentsOfDirectory(atPath: historyFolder.path)) ?? []).filter { $0.hasSuffix(".png") }.count }
-        check(history.items.count == CaptureHistory.limit && pngs() == CaptureHistory.limit && CGImage.load(from: history.latest!)?.width == 40 + CaptureHistory.limit + 1,
-              "history keeps the newest \(CaptureHistory.limit) captures, newest first")
+        check(history.items.count == historyLimit && pngs() == historyLimit && CGImage.load(from: history.latest!)?.width == 40 + historyLimit + 1,
+              "history keeps the newest \(historyLimit) captures, newest first")
         check(CaptureHistory(folder: historyFolder).items == history.items, "history survives a relaunch")
         check(CaptureHistory.date(of: history.latest!).map { abs($0.timeIntervalSinceNow) < 60 } == true, "each capture knows when it was taken")
         let incoming = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-\(UUID().uuidString).png")
         try? ImageExport.writePNG(solid(77, 30, 1, 0, 0), to: incoming)
         history.keep(incoming)
-        check(!FileManager.default.fileExists(atPath: incoming.path) && CGImage.load(from: history.latest!)?.width == 77 && pngs() == CaptureHistory.limit,
+        check(!FileManager.default.fileExists(atPath: incoming.path) && CGImage.load(from: history.latest!)?.width == 77 && pngs() == historyLimit,
               "a new capture's file moves into the history, the oldest goes")
         let doomed = history.items[3]
         history.remove(doomed)
-        check(history.items.count == CaptureHistory.limit - 1 && !FileManager.default.fileExists(atPath: doomed.path), "× deletes one capture's file")
+        check(history.items.count == historyLimit - 1 && !FileManager.default.fileExists(atPath: doomed.path), "× deletes one capture's file")
+        check(!CaptureHistory.isReadable(doomed) && CaptureHistory.isReadable(history.items[0]), "a deleted capture's file reads as unreadable")
 
         // Edits are saved next to each capture and come back when it's reopened
         func hasEdits(_ capture: URL) -> Bool { FileManager.default.fileExists(atPath: CaptureHistory.editsURL(for: capture).path) }
@@ -1049,6 +1095,8 @@ struct SelfCheck {
 
         // MARK: Layouts, with the history strip (snapshots show the bars)
         let settings = AppSettings.shared
+        let unreadable = history.items[5]
+        try? Data("not a picture".utf8).write(to: unreadable) // e.g. a file another copy of the app deleted or broke
         let layoutModel = EditorModel(image: image)
         layoutModel.load(image, from: history.items[1])
         let marked = Annotation(shape: .rectangle(CGRect(x: 520, y: 300, width: 200, height: 120)), color: Theme.accent)
@@ -1153,12 +1201,24 @@ struct SelfCheck {
             spin(0.1)
             check(openedByWobble && layoutModel.sourceFile == history.items[1] && !swept[3].hovering,
                   "a drag released back on its thumbnail opens it; one released elsewhere does nothing")
+
+            commandClick(swept[5], [])
+            check(history.items.contains(unreadable) && layoutModel.sourceFile == history.items[1] && swept[5].files().isEmpty,
+                  "an unreadable capture stays (marked) when clicked; nothing opens or drags")
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
         layoutWindow.close()
         settings.editorLayout = .classic
         UserDefaults.standard.removeObject(forKey: "editorLayout")
+        let keptBefore = history.items.count
+        settings.historyLimit = 5
+        check(history.items.count == keptBefore, "lowering the limit removes nothing right away")
+        history.store(solid(12, 12, 0, 0, 0))
+        let captureFiles = ((try? FileManager.default.contentsOfDirectory(atPath: historyFolder.path)) ?? []).filter { $0.hasSuffix(".png") && !$0.hasSuffix(".preview.png") }
+        check(history.items.count == 5 && captureFiles.count == 5, "the next capture trims the history to the new limit (\(captureFiles.count) files)")
+        settings.historyLimit = 20
+        UserDefaults.standard.removeObject(forKey: "historyLimit")
         history.removeAll()
         check(history.items.isEmpty && pngs() == 0, "the trash deletes every capture")
         try? FileManager.default.removeItem(at: historyFolder)
