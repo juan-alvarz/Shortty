@@ -37,13 +37,18 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
 | `Design/dmg` | Disk image window background, 1× and 2× → `swift Scripts/make-dmg-background.swift` (layout shared with `make-dmg.sh`) |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
-| `openspec/specs` | One behavior contract per capability; the architecture map is in `openspec/changes/archive/*-baseline-architecture/design.md` |
+| `docs/memory` | Project memory: `decisions.md`, `known-issues.md`, `changelog-notes.md` |
 
-## Specs (OpenSpec)
+## Project memory
 
-Behavior changes start as an OpenSpec change: `/opsx:propose` → `/opsx:apply` → `/opsx:archive` (skills in `.claude/skills`,
-`.agents/skills`). The CLI isn't installed globally; run it as `npx -y @fission-ai/openspec@1.15.0 <command>`.
-Update the README and the matching `openspec/specs/<capability>/spec.md` delta together.
+- Read `docs/memory/` before starting any non-trivial change.
+- After a critical change, a decision (including a rejected approach), or a bug that persists or was hard to find, add an
+  entry to the matching file in the same commit.
+- Update or mark entries that become wrong. Never leave a stale one.
+- Don't record what the code, tests or git log already make obvious.
+- Real-device behavior wins over specs: an issue is fixed only after it has been checked in the running app, not
+  because the tests pass.
+- User-visible behavior is documented in the README; update it with the change.
 
 ## Code quality
 
