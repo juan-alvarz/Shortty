@@ -107,7 +107,11 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
   app can't activate itself, so a normal window opened after a capture lands behind the frontmost app. Never call
   `NSApp.activate()` before showing it: a half-granted activation makes Shortty "foreground" and the window server
   then refuses the panel keyboard focus. `AppPresence` activates (and turns Shortty into a regular app) only after the panel is key.
-  The same refusal hits a regular app that went inactive (editor left open, another app used): call
-  `AppPresence.prepareForPanelFocus()` before any panel asks for keyboard focus.
+  The same refusal hits a regular app that went inactive (editor left open, another app used). Give any panel focus
+  with `AppPresence.focus(_:)`: it steps back first, makes the panel key, then activates even when AppKit posts no "became key".
+  Who has the keyboard is `AppPresence.holdsKeyboard` (the window server's answer): `isKeyWindow` and `NSApp.isActive` can stay
+  true after another app took it, and `makeKey` does nothing while they are.
+- **Tracking areas inside SwiftUI.** `.inVisibleRect` follows `visibleRect`, which SwiftUI stretches past the view
+  (a thumbnail's covers the whole strip). Rebuild an exact `bounds ∩ visibleRect` area in `updateTrackingAreas` (`DragSourceView`).
 - **Self-check side effects.** Never touch the real clipboard or Downloads in checks (`model.textPasteboard` exists for that).
 - **Signing.** Keep `CODE_SIGN_IDENTITY: "Shortty Dev"` in `project.yml`. Ad-hoc signing makes macOS re-ask for Screen Recording after every build.

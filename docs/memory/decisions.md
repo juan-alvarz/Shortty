@@ -2,6 +2,24 @@
 
 Newest first. Each: what was decided, why, and what was rejected.
 
+## 2026-11-09 · The window server says who has the keyboard
+- **Decision:** `AppPresence.holdsKeyboard` reads the key focus process from the window server (private `SLPSGetKeyFocusProcess`,
+  found with `dlsym`; `NSApp.isActive` if it's gone). Focus code goes by it, and resigns key before asking again.
+- **Why:** `isKeyWindow` and `isActive` stayed true after the keyboard went to another app, and no AppKit call re-asks while they are.
+- **Rejected:** trusting AppKit's flags; `makeKey` alone (a no-op on a window it counts as key); stepping back to menu bar
+  only before `makeKey` (same no-op).
+
+## 2026-11-09 · Recent captures: arrows, pointing hand, own tracking areas
+- **Decision:** ‹ and › beside the strip open the next newer or older capture (skipping unreadable ones) and scroll it into view.
+  Thumbnails show the pointing hand, readable or not, and the closed hand only while pressed. The toolbar drag handle keeps the open hand.
+- **Why:** the user wanted a way to move between captures that doesn't depend on hovering thumbnails, and a click cursor, not a drag one.
+- **Rejected:** an animated `scrollTo`; it didn't land on the target when steps came quickly.
+
+## 2026-11-09 · Strip and canvas listen only over themselves
+- **Decision:** every `DragSourceView` tracks exactly its visible box. The canvas keeps `.inVisibleRect`: it sits in an AppKit
+  scroll view, whose clip view bounds `visibleRect` correctly. The self-check asserts neither reaches over the other.
+- **Rejected:** moving the strip into its own window or hosting view. The overlap was the tracking areas, not the view tree.
+
 ## 2026-11-03 · Project memory instead of OpenSpec
 - **Decision:** behavior lives in the README and the self-check; `docs/memory/` keeps only decisions, known issues and critical changes.
 - **Why:** the specs restated the README and self-check, and every change needed a propose/apply/archive round.
@@ -37,7 +55,8 @@ Newest first. Each: what was decided, why, and what was rejected.
 - **Why:** a selected big picture swallowed every click on pictures and text placed on top of it, so they looked dead.
 
 ## 2026-10-29 · Panel focus handoff on mouse-up
-- **Decision:** `AppPresence.prepareForPanelFocus()` (regular + inactive → accessory, then make the panel key) runs on mouse-up, not mouse-down.
+- **Decision:** the focus handoff (regular + inactive → accessory, then make the panel key) runs on mouse-up, not mouse-down.
+  Since 2026-11-09 it's `AppPresence.focus(_:)`, which also activates directly instead of waiting for `didBecomeKey`.
 - **Why:** switching activation policy mid-press cancels the drag (a text callout's aimed tail).
 - **Rejected:** `NSApp.activate()` before showing the panel (a half-granted activation leaves the panel without focus); the mouse-down handoff.
 

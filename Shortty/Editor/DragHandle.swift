@@ -1,4 +1,5 @@
 import AppKit
+import OSLog
 import SwiftUI
 
 /// Toolbar handle: drag the annotated image straight into any app or website upload box.
@@ -43,14 +44,15 @@ final class DragSourceView: NSView, NSDraggingSource {
     private var downAt: CGPoint?
     private var started = false
     private(set) var hovering = false
+    /// Traces presses, to pin down clicks that did nothing:
+    /// `/usr/bin/log show --last 5m --predicate 'subsystem == "com.shortty.Shortty" && category == "press"'`
+    static let log = Logger(subsystem: "com.shortty.Shortty", category: "press")
 
     init(files: @escaping () -> [URL], onClick: ((NSEvent.ModifierFlags) -> Void)?, isEditorPicture: Bool = false) {
         self.files = files
         self.onClick = onClick
         self.isEditorPicture = isEditorPicture
         super.init(frame: .zero)
-        // Geometric, so the pointer over a button on top of this view still counts as inside.
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways, .inVisibleRect], owner: self))
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
@@ -58,30 +60,48 @@ final class DragSourceView: NSView, NSDraggingSource {
     override var mouseDownCanMoveWindow: Bool { false }
     /// The first click on an inactive editor works too, like the SwiftUI buttons around it.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    /// What's on screen of this view. Inside SwiftUI, `visibleRect` reaches far past it (a thumbnail's spans the strip,
+    /// the toolbar handle's the whole window), so it's clipped to bounds.
+    private var shownRect: CGRect { bounds.intersection(visibleRect) }
+    /// A thumbnail is clicked (pointing hand); the toolbar handle only drags. Pressed, both show the closed hand.
+    private var cursor: NSCursor { isEditorPicture ? .openHand : .pointingHand }
     /// Cursor rects go stale when the strip scrolls; a cursor update from the tracking area doesn't.
-    override func cursorUpdate(with event: NSEvent) { NSCursor.openHand.set() }
+    override func cursorUpdate(with event: NSEvent) { cursor.set() }
     override func mouseEntered(with event: NSEvent) { hover(at: event.locationInWindow) }
     override func mouseExited(with event: NSEvent) { hover(at: nil) }
-    /// Enter and exit events go missing when the view moves under a still pointer (scrolling, thumbnails shifting).
+    /// Rebuilt whenever the view moves: an `.inVisibleRect` area spans whatever `visibleRect` does, so every thumbnail
+    /// heard the pointer anywhere over the strip (and the handle over the canvas), and hover stuck on the wrong one.
+    /// Geometric, so the pointer over a button on top of this view still counts as inside.
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        if !shownRect.isEmpty { // scrolled out of the strip
+            addTrackingArea(NSTrackingArea(rect: shownRect, options: [.mouseEnteredAndExited, .cursorUpdate, .activeAlways], owner: self))
+        }
+        // Enter and exit events go missing when the view moves under a still pointer (scrolling, thumbnails shifting).
         // Deferred: this runs during layout, when SwiftUI state mustn't change.
         Task { @MainActor [weak self] in self?.hover(at: self?.window?.mouseLocationOutsideOfEventStream) }
     }
 
     /// Hover from where the pointer is (window coordinates; nil: not over the window). Internal for the self-check.
     func hover(at point: CGPoint?) {
-        // Clipped to bounds: inside SwiftUI, `visibleRect` can reach far past the view (a thumbnail's spans the strip).
-        let inside = point.map { bounds.intersection(visibleRect).contains(convert($0, from: nil)) } ?? false
+        let inside = point.map { shownRect.contains(convert($0, from: nil)) } ?? false
         guard inside != hovering else { return }
         hovering = inside
         onHover?(inside)
     }
 
-    override func mouseDown(with event: NSEvent) { started = false; downAt = event.locationInWindow }
+    override func mouseDown(with event: NSEvent) {
+        started = false
+        downAt = event.locationInWindow
+        NSCursor.closedHand.set()
+        Self.log.notice("source down, hovering \(self.hovering)")
+    }
     override func mouseUp(with event: NSEvent) {
+        Self.log.notice("source up, pressed here \(self.downAt != nil), dragged \(self.started)")
         if downAt != nil, !started { onClick?(event.modifierFlags) }
         downAt = nil
+        if hovering { cursor.set() }
     }
 
     /// How far a press moves before it's a drag: a trackpad click often drifts 3–4 pt.
@@ -102,6 +122,7 @@ final class DragSourceView: NSView, NSDraggingSource {
                                   contents: NSImage(cgImage: preview, size: size))
             return item
         }
+        Self.log.notice("source drag starts, \(items.count) items")
         guard !items.isEmpty else { return started = false } // nothing to drag: the release is still a click
         // A failed drag otherwise slides back for a moment, swallowing the next clicks.
         beginDraggingSession(with: items, event: event, source: self).animatesToStartingPositionsOnCancelOrFail = false
@@ -118,6 +139,8 @@ final class DragSourceView: NSView, NSDraggingSource {
     func dragEnded(at point: CGPoint?, dropped: Bool) {
         downAt = nil
         hover(at: point)
+        if hovering { cursor.set() }
+        Self.log.notice("source drag ended, dropped \(dropped), back on it \(self.hovering)")
         if !dropped, hovering { onClick?(NSEvent.modifierFlags) }
     }
 }

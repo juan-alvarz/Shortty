@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 /// The editor: the same parts in one of four arrangements (Settings → Layout), with recent captures along the bottom.
@@ -378,9 +379,9 @@ private struct SelectionBar: View {
 
 // MARK: - History strip
 
-/// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it,
-/// ⌘-click to pick several, drag one (or the picked ones) into any app, × deletes one, the trash deletes them all.
-/// Remembers whether it's open.
+/// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it
+/// (or step with the arrows on either side), ⌘-click to pick several, drag one (or the picked ones) into any app,
+/// × deletes one, the trash deletes them all. Remembers whether it's open.
 struct HistoryStrip: View {
     static let expandedKey = "historyExpanded"
     static let foldedHeight: CGFloat = 26
@@ -395,6 +396,13 @@ struct HistoryStrip: View {
     /// What a drag from `url` carries: every picked capture (in strip order) when it's one of them, else just it.
     static func dragged(_ url: URL, picked: Set<URL>, in items: [URL]) -> [URL] {
         picked.contains(url) ? items.filter(picked.contains) : [url]
+    }
+
+    /// What the arrows try, nearest first: the captures past the open one toward `step` (-1 newer, on the left; 1 older).
+    /// Empty at either end, or when the open picture isn't a recent capture.
+    static func neighbors(of current: URL?, step: Int, in items: [URL]) -> [URL] {
+        guard let index = items.firstIndex(where: { $0 == current }) else { return [] }
+        return step < 0 ? items[..<index].reversed() : Array(items[(index + 1)...])
     }
 
     /// The files a drag hands over: each capture as its thumbnail shows it, edits drawn in (a temporary PNG),
@@ -444,27 +452,34 @@ struct HistoryStrip: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.08 : 0)))
             }
             .help("Hide recent captures")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(history.items, id: \.self) { url in
-                        HistoryThumb(url: url, current: url == model.sourceFile, picked: picked.contains(url),
-                                     revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
-                            if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
-                            picked = []
-                            guard url != model.sourceFile else { return } // already open: reloading would drop its undo history
-                            guard let image = CGImage.load(from: url) else { return } // the thumb shows it's unreadable; × removes it
-                            model.load(image, from: url)
-                        } dragged: {
-                            model.endEditing()
-                            model.saveEdits() // the open capture's latest edits go along
-                            return Self.exported(Self.dragged(url, picked: picked, in: history.items))
-                        } remove: {
-                            history.remove(url)
+            stepButton(-1)
+            ScrollViewReader { scroller in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(history.items, id: \.self) { url in
+                            HistoryThumb(url: url, current: url == model.sourceFile, picked: picked.contains(url),
+                                         revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
+                                if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
+                                picked = []
+                                let wasOpen = url == model.sourceFile, opened = open(url)
+                                DragSourceView.log.notice("thumbnail \(url.lastPathComponent, privacy: .public) clicked, opened \(opened), was open \(wasOpen)")
+                            } dragged: {
+                                model.endEditing()
+                                model.saveEdits() // the open capture's latest edits go along
+                                return Self.exported(Self.dragged(url, picked: picked, in: history.items))
+                            } remove: {
+                                history.remove(url)
+                            }
                         }
                     }
+                    .padding(.trailing, 16)
                 }
-                .padding(.trailing, 16)
+                // The arrows can step past the edge of the strip: keep the open capture in view.
+                .onChange(of: model.sourceFile) { _, file in
+                    if let file { scroller.scrollTo(file) }
+                }
             }
+            stepButton(1)
             ChromeDivider()
             if confirmingClear {
                 PanelButton(title: "Delete all \(history.items.count)", prominent: true) {
@@ -482,6 +497,29 @@ struct HistoryStrip: View {
         .padding(.leading, 10)
         .padding(.trailing, 16)
         .frame(height: Self.expandedHeight)
+    }
+
+    /// Opens a capture; false when its file can't be read (the thumb shows that, × removes it).
+    private func open(_ url: URL) -> Bool {
+        guard url != model.sourceFile else { return true } // already open: reloading would drop its undo history
+        guard let image = CGImage.load(from: url) else { return false }
+        model.load(image, from: url)
+        return true
+    }
+
+    /// ‹ opens the next newer capture, › the next older one, skipping any that can't be read.
+    private func stepButton(_ step: Int) -> some View {
+        let targets = Self.neighbors(of: model.sourceFile, step: step, in: history.items)
+        return HoverButton { picked = []; _ = targets.first(where: open) } label: { hovering in
+            Icon(kind: .chevronUp, size: 12)
+                .rotationEffect(.degrees(step < 0 ? -90 : 90))
+                .foregroundStyle(hovering && !targets.isEmpty ? Color.white : Theme.chromeText)
+                .frame(width: 22, height: 50)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering && !targets.isEmpty ? 0.08 : 0)))
+                .opacity(targets.isEmpty ? 0.35 : 1)
+        }
+        .disabled(targets.isEmpty)
+        .help(step < 0 ? "Newer capture" : "Older capture")
     }
 
     /// What the strip adds to the window's height right now.

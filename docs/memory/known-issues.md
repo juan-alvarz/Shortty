@@ -2,10 +2,31 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-09 · Thumbnail hover stuck on the wrong capture — fixed in code, unverified
+- **Symptom:** hovering recent captures highlighted (and showed × on) the wrong thumbnail, and the hand cursor showed between thumbnails.
+- **Cause:** each `DragSourceView` tracked `.inVisibleRect`, and inside SwiftUI a thumbnail's `visibleRect` is the whole strip
+  (the toolbar drag handle's, the whole window). Every thumbnail got enter/exit for the whole strip, none while moving between them.
+- **Fix:** an exact `bounds ∩ visibleRect` area, rebuilt in `updateTrackingAreas` (called as the strip scrolls).
+
+## 2026-11-09 · Editor shortcuts type into the other app — fixed, checked with replayed clicks, not yet by hand
+- **Symptom:** with the editor open, the user typed in another app, came back, pressed P: the "p" landed in the other app.
+- **Cause:** AppKit's stale belief. It counts the panel as key and Shortty as active while the window server sends key
+  presses to the other app, so a click asks for nothing (`makeKey` on a "key" window is a no-op). Made on purpose in the
+  installed app (key focus released behind AppKit's back): the build without the fix never got the keyboard back.
+  How the state arises in normal use wasn't found. Capture from the background, switching apps and clicking back, and
+  another process's panel taking the keyboard all kept AppKit and the window server in step.
+- **Fix:** `AppPresence.holdsKeyboard` asks the window server. `AppPresence.focus(_:)` (step back, make key, then activate
+  directly) first resigns a panel that only AppKit counts as key. It runs on every capture, reopen, area selection, and
+  mouse-up in the editor while Shortty isn't active or doesn't hold the keyboard.
+- **Checked:** in the installed app, with a debugger-loaded probe replaying clicks through `EditorPanel.sendEvent` and
+  reading `SLPSGetKeyFocusProcess`. Real key presses can't be posted from an agent's shell, so pressing P is still to do by hand.
+- **Gap:** a click that drifts past 6 pt on a thumbnail starts a drag session, which eats the mouse-up, so it opens the
+  capture without taking focus.
+
 ## 2026-11-03 · Delete/Backspace "doesn't remove" a selected annotation — open
 - **Symptom:** the user reported Delete only working for some selections.
 - **Cause:** not found. Self-checks press ⌫ and ⌦ through `EditorWindowController.handle` on every annotation kind and on a group, and all pass.
-- **Suspects:** the panel didn't have keyboard focus, or the stale build copy was running (see below).
+- **Suspects:** the panel didn't have keyboard focus (see 2026-11-09, shortcuts typing into the other app), or the stale build copy was running (see below).
 - **Next:** reproduce in the installed app before changing code.
 
 ## 2026-11-03 · Pictures on a selected picture can't be clicked — fixed in code, unverified

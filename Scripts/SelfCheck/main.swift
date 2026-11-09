@@ -1205,6 +1205,120 @@ struct SelfCheck {
             commandClick(swept[5], [])
             check(history.items.contains(unreadable) && layoutModel.sourceFile == history.items[1] && swept[5].files().isEmpty,
                   "an unreadable capture stays (marked) when clicked; nothing opens or drags")
+
+            // The strip and the canvas don't share pointer events: each thumbnail listens only over its own visible box
+            // (inside SwiftUI an `.inVisibleRect` area spanned the whole strip, so hover stuck on the wrong one).
+            let layoutCanvas = find(CanvasScrollView.self, in: layoutWindow.contentView!)!
+            let canvasFrame = layoutCanvas.convert(layoutCanvas.bounds, to: nil)
+            let listening = dragSources(in: layoutWindow.contentView!).flatMap { view in view.trackingAreas.map { (view, view.convert($0.rect, to: nil)) } }
+            check(!listening.isEmpty && listening.allSatisfy { view, area in view.convert(view.bounds, to: nil).contains(area) }
+                  && !swept.contains { canvasFrame.intersects($0.convert($0.bounds, to: nil)) },
+                  "thumbnails and the drag handle listen only over themselves; none over the canvas")
+            let canvasDocument = layoutCanvas.documentView!
+            check(canvasFrame.contains(canvasDocument.convert(canvasDocument.visibleRect, to: nil)), "the canvas listens only inside itself")
+
+            // Pointing hand over any thumbnail, unreadable ones too; the closed hand only while pressed.
+            func cursorAfter(_ view: DragSourceView, _ type: NSEvent.EventType) -> NSCursor {
+                let center = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
+                view.hover(at: center)
+                switch type {
+                case .leftMouseDown, .leftMouseUp:
+                    let event = NSEvent.mouseEvent(with: type, location: center, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                                   context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+                    type == .leftMouseDown ? view.mouseDown(with: event) : view.mouseUp(with: event)
+                default:
+                    view.cursorUpdate(with: crossing(.cursorUpdate, view, CGPoint(x: view.bounds.midX, y: view.bounds.midY)))
+                }
+                return NSCursor.current
+            }
+            let brokenThumb = swept[5]
+            check(cursorAfter(swept[2], .cursorUpdate) == .pointingHand && cursorAfter(brokenThumb, .cursorUpdate) == .pointingHand
+                  && cursorAfter(brokenThumb, .leftMouseDown) == .closedHand && cursorAfter(brokenThumb, .leftMouseUp) == .pointingHand,
+                  "thumbnails show the pointing hand, readable or not, and the closed hand only while pressed")
+            brokenThumb.hover(at: nil)
+            spin(0.1)
+
+            // ‹ and › beside the strip step to the next newer or older capture.
+            check(HistoryStrip.neighbors(of: stripItems[1], step: -1, in: stripItems) == [stripItems[0]]
+                  && HistoryStrip.neighbors(of: stripItems[1], step: 1, in: stripItems) == [stripItems[2], stripItems[3]]
+                  && HistoryStrip.neighbors(of: stripItems[0], step: -1, in: stripItems).isEmpty
+                  && HistoryStrip.neighbors(of: nil, step: 1, in: stripItems).isEmpty,
+                  "the arrows try the captures past the open one, nearest first; nothing past the ends or for a picture from elsewhere")
+            let stripScroll = dragSources(in: layoutWindow.contentView!).first { $0.bounds.width > 60 }!.enclosingScrollView!
+            let stripFrame = stripScroll.convert(stripScroll.bounds, to: nil)
+            func arrow(_ step: Int) {
+                let point = CGPoint(x: step < 0 ? stripFrame.minX - 21 : stripFrame.maxX + 21, y: stripFrame.midY)
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                                              context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+                }
+                spin(0.3)
+            }
+            func opened() -> Int? { layoutModel.sourceFile.flatMap(history.items.firstIndex) }
+            arrow(1)
+            let older = opened()
+            arrow(-1)
+            let newer = opened()
+            layoutModel.load(image, from: history.items[4])
+            spin(0.2)
+            arrow(1)
+            let skipped = opened()
+            check(older == 2 && newer == 1 && skipped == 6, "› opens the next older capture, ‹ the next newer one, skipping one that can't be read (\(older ?? -1), \(newer ?? -1), \(skipped ?? -1))")
+            layoutModel.load(image, from: history.items[0])
+            spin(0.2)
+            arrow(-1)
+            check(opened() == 0, "‹ does nothing on the newest capture")
+            layoutModel.load(image, from: history.items[history.items.count - 2])
+            spin(0.2)
+            arrow(1)
+            spin(0.3)
+            let lastThumb = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.max { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }!
+            check(opened() == history.items.count - 1 && stripFrame.contains(lastThumb.convert(lastThumb.bounds, to: nil)),
+                  "stepping past the edge of the strip scrolls the open capture into view (\(opened() ?? -1) of \(history.items.count), \(lastThumb.convert(lastThumb.bounds, to: nil)) in \(stripFrame))")
+            // PROBE-BEGIN
+            func rowMap(_ label: String) {
+                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
+                let y = live[0].convert(CGPoint(x: 0, y: live[0].bounds.midY), to: nil).y
+                var runs: [(String, Int)] = []
+                for x in stride(from: stripFrame.minX, to: stripFrame.maxX, by: 2) {
+                    let name = layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)).map { String(describing: type(of: $0)) } ?? "nil"
+                    if runs.last?.0 == name { runs[runs.count - 1].1 += 2 } else { runs.append((name, 2)) }
+                }
+                print("PROBE \(label): " + runs.map { "\($0.0.prefix(8)):\($0.1)" }.joined(separator: " "))
+                print("PROBE   frames: " + live.map { v in let f = v.convert(v.bounds, to: nil); return "\(Int(f.minX))-\(Int(f.maxX))" }.joined(separator: " ") + " strip \(Int(stripFrame.minX))-\(Int(stripFrame.maxX))")
+            }
+            rowMap("start")
+            for index in [history.items.count - 1, 0, history.items.count - 2, 3, history.items.count - 1] {
+                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
+                let sorted = live.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
+                let target = sorted[index]
+                let f = target.convert(target.bounds, to: nil).intersection(stripFrame)
+                if f.isEmpty { layoutModel.load(image, from: history.items[index]); spin(0.02); rowMap("loaded \(index) +0.02"); spin(0.5); rowMap("loaded \(index) +0.5"); continue }
+                let point = CGPoint(x: f.midX, y: f.midY)
+                target.hover(at: point)
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                                              context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+                }
+                rowMap("clicked \(index) +0, opened \(opened() ?? -1)")
+                spin(0.02); rowMap("clicked \(index) +0.02")
+                spin(0.5); rowMap("clicked \(index) +0.5")
+            }
+            do {
+                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
+                let t = live[live.count - 3], f = t.convert(t.bounds, to: nil)
+                t.hover(at: CGPoint(x: f.midX, y: f.midY)); spin(0.3)
+                print("PROBE hovered thumb \(f), strip \(stripFrame)")
+                for y in stride(from: f.maxY + 6, through: f.minY - 22, by: -4) {
+                    var line = ""
+                    for x in stride(from: f.minX - 12, through: f.maxX + 12, by: 4) {
+                        let n = layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)).map { String(describing: type(of: $0)) } ?? "nil"
+                        line += n.hasPrefix("DragSource") ? "#" : n.hasPrefix("Document") ? "." : String(n.prefix(1))
+                    }
+                    print("PROBE \(Int(y)) " + line)
+                }
+            }
+            // PROBE-END
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
@@ -1446,6 +1560,8 @@ struct SelfCheck {
         spin(1.5)
         check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
               "an open editor makes Shortty a regular app and keeps keyboard focus (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        // AppKit's own answer can be stale; the window server's is the one a click into the editor goes by.
+        check(AppPresence.holdsKeyboard, "the window server sends key presses to the open editor")
         // The editor stays open while another app is used: Shortty is regular but inactive, the state where WindowServer
         // refuses a non-activating panel keyboard focus. It steps back to menu bar only, then takes focus again.
         NSApp.deactivate()
@@ -1458,6 +1574,18 @@ struct SelfCheck {
         spin(1.5)
         check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
               "after another app was active, a new capture gives the editor focus again (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        // Seen in the app: AppKit still counts the editor as key while Shortty sits in the background as menu bar only,
+        // so no "became key" arrives. A click into it must still take focus and make Shortty regular again.
+        NSApp.deactivate()
+        NSApp.setActivationPolicy(.accessory)
+        spin(0.5)
+        let editorCanvas = find(CanvasScrollView.self, in: editorWindow.contentView!)!
+        let inCanvas = editorCanvas.convert(CGPoint(x: editorCanvas.bounds.midX, y: editorCanvas.bounds.midY), to: nil)
+        editorWindow.sendEvent(NSEvent.mouseEvent(with: .leftMouseUp, location: inCanvas, modifierFlags: [], timestamp: 0, windowNumber: editorWindow.windowNumber,
+                                                  context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+        spin(1)
+        check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
+              "a click into an editor that still counts as key, Shortty in the background, takes focus again (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
         check(editor.handle(key("w", kVK_ANSI_W, in: editorWindow, flags: .command)) && !editorWindow.isVisible, "⌘W closes the editor")
         spin(0.3)
         check(NSApp.activationPolicy() == .accessory, "closing the last window leaves only the menu bar icon")

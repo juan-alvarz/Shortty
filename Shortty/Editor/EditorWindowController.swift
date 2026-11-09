@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import OSLog
 import SwiftUI
 
 /// A panel that takes keyboard focus without activating Shortty. Since macOS 14 a background app can't make
@@ -8,11 +9,17 @@ private final class EditorPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
-    /// A click back into the editor after using another app: AppKit may still count it as key, so ask again.
+    /// A click back into the editor after using another app: AppKit may still count it as key and Shortty as active,
+    /// so go by the window server and ask again.
     /// On the way up, never down: switching the app's mode mid-press cancels the drag (a text box's aimed tail).
+    /// Not after a click that closed it.
     override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .leftMouseUp {
+            let hit = contentView?.hitTest(event.locationInWindow).map { String(describing: type(of: $0)) } ?? "nothing"
+            DragSourceView.log.notice("\(event.type == .leftMouseDown ? "down" : "up", privacy: .public) on \(hit, privacy: .public), key \(self.isKeyWindow), active \(NSApp.isActive), keyboard \(AppPresence.holdsKeyboard)")
+        }
         super.sendEvent(event)
-        if event.type == .leftMouseUp || event.type == .rightMouseUp, AppPresence.prepareForPanelFocus() { makeKey() }
+        if event.type == .leftMouseUp || event.type == .rightMouseUp, isVisible, !NSApp.isActive || !AppPresence.holdsKeyboard { AppPresence.focus(self) }
     }
 }
 
@@ -123,8 +130,7 @@ final class EditorWindowController: NSWindowController {
     /// without focus (WindowServer: "a foreground app can't steal keyboard focus"). `AppPresence` activates afterwards.
     private func present() {
         guard let window else { return }
-        AppPresence.prepareForPanelFocus()
-        window.makeKeyAndOrderFront(nil)
+        AppPresence.focus(window)
         window.orderFrontRegardless()
     }
 
