@@ -195,6 +195,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 |---|---|
 | Start Shortty at login | Opens it in the menu bar when you log in. |
 | Play sound when capturing | The capture sound. |
+| Show the pointer in screenshots | Draws the mouse pointer into area, window and screen captures. Off by default. Scrolling capture and Capture Text always leave it out. |
 | Selection color | The outline while selecting an area or counting down. Follows your Mac's accent color until you pick another. |
 | Save folder | Where Save writes. Downloads unless you pick another. |
 | After a capture | What to show: the editor, a quick card in the corner of the screen with Copy, Save, Pin and Edit (drag its picture into any app, or click it to edit; it goes away on its own), or nothing but a short notice. Copy and Save also put the capture on the clipboard and in your save folder right away. Out of the box: editor + Copy. |

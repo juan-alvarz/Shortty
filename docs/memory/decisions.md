@@ -2,6 +2,10 @@
 
 Newest first. Each: what was decided, why, and what was rejected.
 
+## 2026-11-09 · Pointer setting skips quiet frames
+- **Decision:** Settings → Show the pointer in screenshots adds `-C` to every `capture()` (area, repeat, window, screen, inserted picture), not to `frame(of:)`.
+- **Why:** a pointer in scrolling-capture frames breaks stitching, and in Capture Text it can cover the text being read.
+
 ## 2026-11-03 · Project memory instead of OpenSpec
 - **Decision:** behavior lives in the README and the self-check; `docs/memory/` keeps only decisions, known issues and critical changes.
 - **Why:** the specs restated the README and self-check, and every change needed a propose/apply/archive round.

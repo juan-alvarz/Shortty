@@ -59,12 +59,18 @@ enum ScreenCapture {
         return "\(Int(rect.minX)),\(Int(primaryHeight - rect.maxY)),\(Int(rect.width)),\(Int(rect.height))"
     }
 
+    /// The user's sound and pointer settings plus `options`. Quiet frames (`frame(of:)`) skip these: a pointer would
+    /// break scroll stitching and text recognition.
+    static func arguments(_ options: [String]) -> [String] {
+        (AppSettings.shared.captureSound ? [] : ["-x"]) + (AppSettings.shared.showsCursor ? ["-C"] : []) + options
+    }
+
     private static func capture(_ options: [String], keepInHistory: Bool = true) async -> CGImage? {
         guard hasPermission() else {
             log.notice("capture skipped: Screen Recording not granted")
             return nil
         }
-        let (url, result) = await screencapture((AppSettings.shared.captureSound ? [] : ["-x"]) + options, type: "png")
+        let (url, result) = await screencapture(arguments(options), type: "png")
         defer { try? FileManager.default.removeItem(at: url) }
         let image = CGImage.load(from: url)
         let summary = image.map { "\($0.width)x\($0.height) blank=\($0.isBlank)" } ?? "no file"

@@ -1243,6 +1243,13 @@ struct SelfCheck {
         snapshot(card.contentView!, "quick-card.png")
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
+        // MARK: Pointer in screenshots
+        check(!settings.showsCursor && !ScreenCapture.arguments(["-R", "0,0,1,1"]).contains("-C"), "screenshots leave the pointer out by default")
+        settings.showsCursor = true
+        check(ScreenCapture.arguments(["-R", "0,0,1,1"]).contains("-C") && UserDefaults.standard.bool(forKey: "showsCursor"),
+              "the pointer setting adds -C and is remembered")
+        settings.showsCursor = false
+        UserDefaults.standard.removeObject(forKey: "showsCursor")
         // MARK: Selection color
         check(settings.selectionColorHex == nil && Color(nsColor: settings.selectionColor).hex == Color(nsColor: .controlAccentColor).hex,
               "the selection overlay follows the Mac's accent color out of the box")

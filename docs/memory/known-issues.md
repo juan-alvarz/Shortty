@@ -2,6 +2,10 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-09 · Pointer in screenshots — unverified
+- **Status:** the self-check covers the `-C` argument only. Not yet checked in the installed app.
+- **Check:** with the setting on, an area capture should show the arrow at the release point (the selector resets the crosshair on close); a window capture with `-i -W` may not draw it.
+
 ## 2026-11-03 · Delete/Backspace "doesn't remove" a selected annotation — open
 - **Symptom:** the user reported Delete only working for some selections.
 - **Cause:** not found. Self-checks press ⌫ and ⌦ through `EditorWindowController.handle` on every annotation kind and on a group, and all pass.
