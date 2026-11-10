@@ -2,6 +2,10 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-09 · Pointer in screenshots — unverified
+- **Status:** the self-check covers the `-C` argument only. Not yet checked in the installed app.
+- **Check:** with the setting on, an area capture should show the arrow at the release point (the selector resets the crosshair on close); a window capture with `-i -W` may not draw it.
+
 ## 2026-11-09 · Thumbnail hover stuck on the wrong capture — fixed in code, unverified
 - **Symptom:** hovering recent captures highlighted (and showed × on) the wrong thumbnail, and the hand cursor showed between thumbnails.
 - **Cause:** each `DragSourceView` tracked `.inVisibleRect`, and inside SwiftUI a thumbnail's `visibleRect` is the whole strip

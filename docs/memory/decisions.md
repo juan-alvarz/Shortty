@@ -2,6 +2,10 @@
 
 Newest first. Each: what was decided, why, and what was rejected.
 
+## 2026-11-09 · Pointer setting skips quiet frames
+- **Decision:** Settings → Show the pointer in screenshots adds `-C` to every `capture()` (area, repeat, window, screen, inserted picture), not to `frame(of:)`.
+- **Why:** a pointer in scrolling-capture frames breaks stitching, and in Capture Text it can cover the text being read.
+
 ## 2026-11-09 · The window server says who has the keyboard
 - **Decision:** `AppPresence.holdsKeyboard` reads the key focus process from the window server (private `SLPSGetKeyFocusProcess`,
   found with `dlsym`; `NSApp.isActive` if it's gone). Focus code goes by it, and resigns key before asking again.

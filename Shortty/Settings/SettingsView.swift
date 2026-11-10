@@ -23,6 +23,7 @@ struct GeneralSettingsView: View {
             Section {
                 LaunchAtLoginToggle()
                 Toggle("Play sound when capturing", isOn: $settings.captureSound)
+                Toggle("Show the pointer in screenshots", isOn: $settings.showsCursor)
             }
             Section("Capturing") {
                 SelectionColorRow(hex: $settings.selectionColorHex)
