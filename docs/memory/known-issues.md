@@ -2,9 +2,10 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
-## 2026-11-09 · Pointer in screenshots — unverified
-- **Status:** the self-check covers the `-C` argument only. Not yet checked in the installed app.
-- **Check:** with the setting on, an area capture should show the arrow at the release point (the selector resets the crosshair on close); a window capture with `-i -W` may not draw it.
+## 2026-11-09 · Pointer missing from screenshots — fixed, checked in the installed app
+- **Symptom:** with the setting on, captures had no pointer, even a lazy area with the pointer inside it.
+- **Cause:** `screencapture -C` draws nothing with `-R` on macOS 15.7. The self-check only looked at the arguments.
+- **Fix:** Shortty draws `NSCursor.currentSystem` itself (`ScreenCapture.Pointer`). Confirmed by the user with a lazy area capture.
 
 ## 2026-11-09 · Thumbnail hover stuck on the wrong capture — fixed in code, unverified
 - **Symptom:** hovering recent captures highlighted (and showed × on) the wrong thumbnail, and the hand cursor showed between thumbnails.

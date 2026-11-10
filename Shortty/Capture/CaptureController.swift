@@ -102,10 +102,11 @@ final class CaptureController {
 
     /// Capture Region uses Shortty's own selector (so Repeat Last Region knows the area); Space switches to a window.
     private func captureChosenArea() async -> CGImage? {
+        let pointer = ScreenCapture.Pointer.now()
         switch await RegionSelector.choose(hint: "Drag over an area   ·   Space for a window   ·   Esc to cancel", allowsWindow: true) {
         case .area(let rect)?:
             Self.lastRegion = rect
-            return await ScreenCapture.captureRect(rect)
+            return await ScreenCapture.captureRect(rect, pointer: pointer)
         case .window?:
             return await ScreenCapture.captureWindow()
         case nil:

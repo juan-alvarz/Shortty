@@ -1358,10 +1358,14 @@ struct SelfCheck {
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
         // MARK: Pointer in screenshots
-        check(!settings.showsCursor && !ScreenCapture.arguments(["-R", "0,0,1,1"]).contains("-C"), "screenshots leave the pointer out by default")
+        check(!settings.showsCursor && ScreenCapture.Pointer.now() == nil, "screenshots leave the pointer out by default")
         settings.showsCursor = true
-        check(ScreenCapture.arguments(["-R", "0,0,1,1"]).contains("-C") && UserDefaults.standard.bool(forKey: "showsCursor"),
-              "the pointer setting adds -C and is remembered")
+        check(ScreenCapture.Pointer.now() != nil && UserDefaults.standard.bool(forKey: "showsCursor"), "the pointer setting takes the pointer and is remembered")
+        let pointerDot = NSImage(size: CGSize(width: 2, height: 2), flipped: false) { NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1).setFill(); $0.fill(); return true }
+        let withPointer = bitmap(20, 10, CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)).makeImage()!
+            .drawing(ScreenCapture.Pointer(image: pointerDot, hotSpot: .zero, location: CGPoint(x: 102, y: 104)), over: CGRect(x: 100, y: 100, width: 10, height: 5))
+        check(same(pixel(withPointer, 5, 3), [255, 0, 0]) && same(pixel(withPointer, 1, 1), [0, 0, 0]) && same(pixel(withPointer, 9, 3), [0, 0, 0]),
+              "an area capture gets the pointer drawn at its tip, at the capture's scale")
         settings.showsCursor = false
         UserDefaults.standard.removeObject(forKey: "showsCursor")
         // MARK: Selection color

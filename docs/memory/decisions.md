@@ -3,8 +3,12 @@
 Newest first. Each: what was decided, why, and what was rejected.
 
 ## 2026-11-09 · Pointer setting skips quiet frames
-- **Decision:** Settings → Show the pointer in screenshots adds `-C` to every `capture()` (area, repeat, window, screen, inserted picture), not to `frame(of:)`.
+- **Decision:** Settings → Show the pointer in screenshots: Shortty draws `NSCursor.currentSystem` into area, lazy area,
+  repeat, screen and active-window captures (`ScreenCapture.Pointer`), taken at the shutter; a dragged area takes it from
+  before the selector opened. Not into `frame(of:)`, window-by-click or inserted pictures.
 - **Why:** a pointer in scrolling-capture frames breaks stitching, and in Capture Text it can cover the text being read.
+- **Rejected:** `screencapture -C`. On macOS 15.7 it drew nothing with `-R` (checked in the installed app, lazy area with the
+  pointer inside), and it isn't allowed with `-i`.
 
 ## 2026-11-09 · The window server says who has the keyboard
 - **Decision:** `AppPresence.holdsKeyboard` reads the key focus process from the window server (private `SLPSGetKeyFocusProcess`,
