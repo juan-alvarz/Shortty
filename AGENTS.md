@@ -101,6 +101,9 @@ add it to the menu in `ShorttyApp`, and add a row in `ShortcutsSettingsView`.
 - **GIF recordings.** A capture whose history file is a `.gif` is animated. `EditorModel.image` is only the frame shown
   (`showFrame`, the playback bar), and edits are drawn on every frame by `ImageExport.writeGIF`. Whatever hands the
   picture over goes through the model (`copy`, `save`, `temporaryFile`); `rendered` is one frame (Pin, Text Card).
+- **Cancelled tasks.** "Stop Recording" cancels the capture task, and the rest of the GIF flow runs inside it. There,
+  `for await`, `Task.sleep` and anything else that honors cancellation return at once. Wait on an unstructured
+  `Task`'s `value` instead (`ScreenCapture.Recording`), and do the work in `Task.detached` (`GIF.write`).
 - **Exclusivity crash.** Inside `edit { }`, never read `annotations` or `selectedIndex`; look the index up first.
 - **Concurrency.** Default isolation is MainActor. Completion handlers from system APIs (e.g. `NSColorSampler`)
   hop back with `Task { @MainActor in … }`, carrying plain values.

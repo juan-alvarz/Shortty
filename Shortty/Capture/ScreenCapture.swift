@@ -130,12 +130,14 @@ enum ScreenCapture {
         private let process = Process()
         private let input = Pipe()
         private let url = URL.temporaryDirectory.appending(path: "shortty-\(UUID().uuidString).mov")
-        private let exited: AsyncStream<Void>
+        /// Done when `screencapture` has exited. A task of its own: a recording stopped early is finished from a
+        /// cancelled task, where waiting on the stream itself returns at once, before the movie is written.
+        private let exited: Task<Void, Never>
 
         /// Starts recording. Nil without Screen Recording, or when `screencapture` won't start.
         init?(of rect: CGRect) {
-            let (exited, exit) = AsyncStream<Void>.makeStream()
-            self.exited = exited
+            let (exits, exit) = AsyncStream<Void>.makeStream()
+            exited = Task { for await _ in exits {} }
             guard hasPermission() else { return nil }
             process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
             process.arguments = ["-x", "-v", "-R", rectArgument(rect), url.path]
@@ -148,7 +150,7 @@ enum ScreenCapture {
         /// Ends the recording. The movie is the caller's to delete; nil when nothing was written.
         func finish() async -> URL? {
             try? input.fileHandleForWriting.close()
-            for await _ in exited {}
+            await exited.value
             let written = FileManager.default.fileExists(atPath: url.path)
             log.notice("recording exit=\(self.process.terminationStatus) file=\(written)")
             return written ? url : nil

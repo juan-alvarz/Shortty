@@ -2,12 +2,23 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
-## 2026-11-13 · GIF recording — new, unverified in the installed app
-- **Checked:** from a shell on macOS 15.7, a build of the app's own sources recorded 2 s of a 400×300 area with
-  `ScreenCapture.Recording`, stopped it, wrote the GIF (19 frames), kept it in a history and opened it in an `EditorModel`.
-  `screencapture -v -R` also recorded a second, 1× display, with the pointer in it.
-- **Not checked:** the flow in the installed app from the menu or a shortcut (countdown, outline, Stop Recording), and
-  playing, drawing on and exporting a real recording in the editor window. The self-check never records the screen.
+## 2026-11-13 · Stop Recording crashed — fixed, checked with the real flow outside the app
+- **Symptom:** ending a GIF recording early ("Stop Recording", or the shortcut again) killed Shortty:
+  `-[NSConcreteTask terminationStatus]: task still running`.
+- **Cause:** stopping cancels the capture task, and `Recording.finish` waited for `screencapture` with `for await` on an
+  `AsyncStream`. In a cancelled task that returns at once, before the process has exited or written the movie.
+- **Fix:** the wait is an unstructured `Task` made when the recording starts; `finish` awaits its `value`, which
+  cancellation doesn't cut short.
+- **Checked:** a build of the app's sources with its real settings (Swift 6, MainActor by default) ran
+  `CaptureController.perform` for GIF Screen (2 s: 18 frames), GIF Screen stopped after 1.5 s of 8 (13 frames, kept) and
+  GIF Window (19 frames). The self-check can't: it never records the screen, and it compiles in Swift 5 mode, where the
+  capture flow isn't on the main actor.
+
+## 2026-11-13 · GIF recording — new, not yet used by hand in the installed app
+- **Checked:** the flow above; `screencapture -v -R` on a second, 1× display, with the pointer in it; the editor, card
+  and exports with a made-up GIF in the self-check.
+- **Not checked:** in the installed app, from the menu or a shortcut: the outline on screen while recording, and
+  playing, drawing on and exporting a real recording in the editor window.
 
 ## 2026-11-09 · Pointer missing from screenshots — fixed, checked in the installed app
 - **Symptom:** with the setting on, captures had no pointer, even a lazy area with the pointer inside it.
