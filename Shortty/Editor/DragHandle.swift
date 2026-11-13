@@ -1,5 +1,4 @@
 import AppKit
-import OSLog
 import SwiftUI
 
 /// Toolbar handle: drag the annotated image straight into any app or website upload box.
@@ -44,9 +43,6 @@ final class DragSourceView: NSView, NSDraggingSource {
     private var downAt: CGPoint?
     private var started = false
     private(set) var hovering = false
-    /// Traces presses, to pin down clicks that did nothing:
-    /// `/usr/bin/log show --last 5m --predicate 'subsystem == "com.shortty.Shortty" && category == "press"'`
-    static let log = Logger(subsystem: "com.shortty.Shortty", category: "press")
 
     init(files: @escaping () -> [URL], onClick: ((NSEvent.ModifierFlags) -> Void)?, isEditorPicture: Bool = false) {
         self.files = files
@@ -62,7 +58,7 @@ final class DragSourceView: NSView, NSDraggingSource {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     /// What's on screen of this view. Inside SwiftUI, `visibleRect` reaches far past it (a thumbnail's spans the strip,
     /// the toolbar handle's the whole window), so it's clipped to bounds.
-    private var shownRect: CGRect { bounds.intersection(visibleRect) }
+    var shownRect: CGRect { bounds.intersection(visibleRect) }
     /// A thumbnail is clicked (pointing hand); the toolbar handle only drags. Pressed, both show the closed hand.
     private var cursor: NSCursor { isEditorPicture ? .openHand : .pointingHand }
     /// Cursor rects go stale when the strip scrolls; a cursor update from the tracking area doesn't.
@@ -95,10 +91,10 @@ final class DragSourceView: NSView, NSDraggingSource {
         started = false
         downAt = event.locationInWindow
         NSCursor.closedHand.set()
-        Self.log.notice("source down, hovering \(self.hovering)")
+        BugReport.shared.note("source down, hovering \(hovering)")
     }
     override func mouseUp(with event: NSEvent) {
-        Self.log.notice("source up, pressed here \(self.downAt != nil), dragged \(self.started)")
+        BugReport.shared.note("source up, pressed here \(downAt != nil), dragged \(started)")
         if downAt != nil, !started { onClick?(event.modifierFlags) }
         downAt = nil
         if hovering { cursor.set() }
@@ -122,7 +118,7 @@ final class DragSourceView: NSView, NSDraggingSource {
                                   contents: NSImage(cgImage: preview, size: size))
             return item
         }
-        Self.log.notice("source drag starts, \(items.count) items")
+        BugReport.shared.note("source drag starts, \(items.count) items")
         guard !items.isEmpty else { return started = false } // nothing to drag: the release is still a click
         // A failed drag otherwise slides back for a moment, swallowing the next clicks.
         beginDraggingSession(with: items, event: event, source: self).animatesToStartingPositionsOnCancelOrFail = false
@@ -140,7 +136,7 @@ final class DragSourceView: NSView, NSDraggingSource {
         downAt = nil
         hover(at: point)
         if hovering { cursor.set() }
-        Self.log.notice("source drag ended, dropped \(dropped), back on it \(self.hovering)")
+        BugReport.shared.note("source drag ended, dropped \(dropped), back on it \(hovering)")
         if !dropped, hovering { onClick?(NSEvent.modifierFlags) }
     }
 }

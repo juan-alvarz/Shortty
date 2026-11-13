@@ -123,6 +123,8 @@ Also in the editor:
   or step to the next newer or older one with ‹ and › on either side. ⌘-click to pick several, drag one (or the picked ones) into any app with their edits,
   or delete them. Edits are saved as you work, and the thumbnails show them.
   A capture whose file can't be read shows a red "!"; delete it with ×.
+  Something misbehaves? **Report** records what happens in the editor until you stop it, with the last 100 clicks and key presses before
+  (key codes, never text), and shows the saved text file. It stays on your Mac.
 - **Drag and drop**: drag the handle next to Save into any app or a website's upload box. Nothing piles up in Downloads.
 - **Pin to screen**: float the finished picture above every window. Scroll or pinch to resize, Esc to close.
 - **Insert pictures**: paste, pick files, capture a new area, or drop image files onto the canvas.

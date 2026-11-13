@@ -7,6 +7,16 @@ Newest first. An issue is fixed only once it has been checked in the installed a
 - **Cause:** `screencapture -C` draws nothing with `-R` on macOS 15.7. The self-check only looked at the arguments.
 - **Fix:** Shortty draws `NSCursor.currentSystem` itself (`ScreenCapture.Pointer`). Confirmed by the user with a lazy area capture.
 
+## 2026-11-12 · Clicks on a recent capture did nothing — fixed, confirmed by the user in the installed app
+- **Symptom:** one thumbnail needed many clicks, or only worked near its left edge. Keyboard focus was fine each time.
+- **Cause:** a wide capture (496×128) fills its 84×50 thumbnail 194 pt wide. `clipShape` clips what's drawn, not what takes
+  clicks, so the picture covered ±97 pt around its center. Thumbnails before it in the strip lie under it, and their
+  presses went to the strip's `DocumentView`. Found with a Report recording: the dead thumbnail's "center hits DocumentView",
+  dead from exactly x = 590, alive at 570.
+- **Fix:** the thumbnail's picture and date take no clicks (`allowsHitTesting(false)`); the `DragSource` over the cell does.
+  The cell also covers the date and half the gap on each side (2026-11-09, a first guess at the cause; kept, they were dead too).
+- **Check:** the self-check's history has wide captures; five click checks fail without the fix.
+
 ## 2026-11-09 · Thumbnail hover stuck on the wrong capture — fixed in code, unverified
 - **Symptom:** hovering recent captures highlighted (and showed × on) the wrong thumbnail, and the hand cursor showed between thumbnails.
 - **Cause:** each `DragSourceView` tracked `.inVisibleRect`, and inside SwiftUI a thumbnail's `visibleRect` is the whole strip
