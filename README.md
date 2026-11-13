@@ -134,6 +134,8 @@ Also in the editor:
   or step to the next newer or older one with ‹ and › on either side. ⌘-click to pick several, drag one (or the picked ones) into any app with their edits,
   or delete them. Edits are saved as you work, and the thumbnails show them.
   A capture whose file can't be read shows a red "!"; delete it with ×.
+  Something misbehaves? **Report** records what happens in the editor until you stop it, with the last 100 clicks and key presses before
+  (key codes, never text), and shows the saved text file. It stays on your Mac.
 - **GIF recordings**: a bar under the picture plays or pauses the recording (Space), and its slider stops on any frame.
   Draw on it with any tool. What you draw, the crop and the backdrop are on every frame of the GIF that Copy, Save and
   drags hand over; nothing can appear partway through or follow something that moves. Pin to screen, Text Card and

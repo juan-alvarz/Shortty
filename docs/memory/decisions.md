@@ -26,6 +26,13 @@ Newest first. Each: what was decided, why, and what was rejected.
 - **Rejected:** `screencapture -C`. On macOS 15.7 it drew nothing with `-R` (checked in the installed app, lazy area with the
   pointer inside), and it isn't allowed with `-i`.
 
+## 2026-11-09 · Report records events instead of asking for steps
+- **Decision:** `BugReport` always keeps the editor's last 100 presses and keys in memory. Report in the strip starts a
+  recording (drags, scrolling and every thumbnail's place too); Stop saves it all to a text file and shows it in Finder.
+- **Why:** the dead-click and lost-keyboard bugs come and go; the user can't make them on demand, and a guess at the cause was wrong before.
+- **Rejected:** reading the system log afterwards (needs the time it happened, and says nothing about where views were);
+  a one-shot "save the trace" button (the user wanted to record while trying again).
+
 ## 2026-11-09 · The window server says who has the keyboard
 - **Decision:** `AppPresence.holdsKeyboard` reads the key focus process from the window server (private `SLPSGetKeyFocusProcess`,
   found with `dlsym`; `NSApp.isActive` if it's gone). Focus code goes by it, and resigns key before asking again.

@@ -1,6 +1,5 @@
 import AppKit
 import Carbon.HIToolbox
-import OSLog
 import SwiftUI
 
 /// A panel that takes keyboard focus without activating Shortty. Since macOS 14 a background app can't make
@@ -14,10 +13,7 @@ private final class EditorPanel: NSPanel {
     /// On the way up, never down: switching the app's mode mid-press cancels the drag (a text box's aimed tail).
     /// Not after a click that closed it.
     override func sendEvent(_ event: NSEvent) {
-        if event.type == .leftMouseDown || event.type == .leftMouseUp {
-            let hit = contentView?.hitTest(event.locationInWindow).map { String(describing: type(of: $0)) } ?? "nothing"
-            DragSourceView.log.notice("\(event.type == .leftMouseDown ? "down" : "up", privacy: .public) on \(hit, privacy: .public), key \(self.isKeyWindow), active \(NSApp.isActive), keyboard \(AppPresence.holdsKeyboard)")
-        }
+        BugReport.shared.note(event, in: self)
         super.sendEvent(event)
         if event.type == .leftMouseUp || event.type == .rightMouseUp, isVisible, !NSApp.isActive || !AppPresence.holdsKeyboard { AppPresence.focus(self) }
     }

@@ -1043,7 +1043,8 @@ struct SelfCheck {
         let history = CaptureHistory(folder: historyFolder)
         let historyLimit = AppSettings.shared.historyLimit
         check(historyLimit == 20, "history keeps 20 captures out of the box")
-        for i in 0..<(historyLimit + 2) { history.store(solid(40 + i, 30, 0.2, 0.4, 0.8)) }
+        // Every fourth one is wide: filling its thumbnail it reaches over its neighbors, which must still take their own clicks.
+        for i in 0..<(historyLimit + 2) { history.store(solid(i % 4 == 2 ? 240 : 40 + i, 30, 0.2, 0.4, 0.8)) }
         func pngs() -> Int { ((try? FileManager.default.contentsOfDirectory(atPath: historyFolder.path)) ?? []).filter { $0.hasSuffix(".png") }.count }
         check(history.items.count == historyLimit && pngs() == historyLimit && CGImage.load(from: history.latest!)?.width == 40 + historyLimit + 1,
               "history keeps the newest \(historyLimit) captures, newest first")
@@ -1244,7 +1245,7 @@ struct SelfCheck {
                   && HistoryStrip.neighbors(of: stripItems[0], step: -1, in: stripItems).isEmpty
                   && HistoryStrip.neighbors(of: nil, step: 1, in: stripItems).isEmpty,
                   "the arrows try the captures past the open one, nearest first; nothing past the ends or for a picture from elsewhere")
-            let stripScroll = dragSources(in: layoutWindow.contentView!).first { $0.bounds.width > 60 }!.enclosingScrollView!
+            let stripScroll = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.compactMap(\.enclosingScrollView).first!
             let stripFrame = stripScroll.convert(stripScroll.bounds, to: nil)
             func arrow(_ step: Int) {
                 let point = CGPoint(x: step < 0 ? stripFrame.minX - 21 : stripFrame.maxX + 21, y: stripFrame.midY)
@@ -1275,50 +1276,36 @@ struct SelfCheck {
             let lastThumb = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.max { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }!
             check(opened() == history.items.count - 1 && stripFrame.contains(lastThumb.convert(lastThumb.bounds, to: nil)),
                   "stepping past the edge of the strip scrolls the open capture into view (\(opened() ?? -1) of \(history.items.count), \(lastThumb.convert(lastThumb.bounds, to: nil)) in \(stripFrame))")
-            // PROBE-BEGIN
-            func rowMap(_ label: String) {
-                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
-                let y = live[0].convert(CGPoint(x: 0, y: live[0].bounds.midY), to: nil).y
-                var runs: [(String, Int)] = []
-                for x in stride(from: stripFrame.minX, to: stripFrame.maxX, by: 2) {
-                    let name = layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)).map { String(describing: type(of: $0)) } ?? "nil"
-                    if runs.last?.0 == name { runs[runs.count - 1].1 += 2 } else { runs.append((name, 2)) }
-                }
-                print("PROBE \(label): " + runs.map { "\($0.0.prefix(8)):\($0.1)" }.joined(separator: " "))
-                print("PROBE   frames: " + live.map { v in let f = v.convert(v.bounds, to: nil); return "\(Int(f.minX))-\(Int(f.maxX))" }.joined(separator: " ") + " strip \(Int(stripFrame.minX))-\(Int(stripFrame.maxX))")
+            // Nothing in the strip is dead: the date under a thumbnail and the gap beside it open it too. Only × stays apart.
+            let cells = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
+            let cell = cells[cells.count - 3], cellFrame = cell.convert(cell.bounds, to: nil)
+            cell.hover(at: CGPoint(x: cellFrame.midX, y: cellFrame.midY))
+            spin(0.3)
+            func hitsCell(_ x: CGFloat, _ y: CGFloat) -> Bool { layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)) is DragSourceView }
+            let deadSpots = stride(from: stripFrame.minX + 1, to: stripFrame.maxX, by: 2).filter { x in !hitsCell(x, cellFrame.midY) || !hitsCell(x, cellFrame.minY + 4) }
+            check(deadSpots.isEmpty && cellFrame.height > 60 && !hitsCell(cellFrame.maxX - 18, cellFrame.maxY - 12),
+                  "every point of the strip belongs to a thumbnail, its date and the gaps too; × is its own button (dead at \(deadSpots.prefix(6)), cell \(cellFrame))")
+            let labelOf = cells[cells.count - 2], labelFrame = labelOf.convert(labelOf.bounds, to: nil)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: CGPoint(x: labelFrame.minX + 1, y: labelFrame.minY + 4), modifierFlags: [], timestamp: 0,
+                                                          windowNumber: layoutWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
             }
-            rowMap("start")
-            for index in [history.items.count - 1, 0, history.items.count - 2, 3, history.items.count - 1] {
-                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }
-                let sorted = live.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
-                let target = sorted[index]
-                let f = target.convert(target.bounds, to: nil).intersection(stripFrame)
-                if f.isEmpty { layoutModel.load(image, from: history.items[index]); spin(0.02); rowMap("loaded \(index) +0.02"); spin(0.5); rowMap("loaded \(index) +0.5"); continue }
-                let point = CGPoint(x: f.midX, y: f.midY)
-                target.hover(at: point)
-                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
-                    layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
-                                                              context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
-                }
-                rowMap("clicked \(index) +0, opened \(opened() ?? -1)")
-                spin(0.02); rowMap("clicked \(index) +0.02")
-                spin(0.5); rowMap("clicked \(index) +0.5")
-            }
-            do {
-                let live = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
-                let t = live[live.count - 3], f = t.convert(t.bounds, to: nil)
-                t.hover(at: CGPoint(x: f.midX, y: f.midY)); spin(0.3)
-                print("PROBE hovered thumb \(f), strip \(stripFrame)")
-                for y in stride(from: f.maxY + 6, through: f.minY - 22, by: -4) {
-                    var line = ""
-                    for x in stride(from: f.minX - 12, through: f.maxX + 12, by: 4) {
-                        let n = layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)).map { String(describing: type(of: $0)) } ?? "nil"
-                        line += n.hasPrefix("DragSource") ? "#" : n.hasPrefix("Document") ? "." : String(n.prefix(1))
-                    }
-                    print("PROBE \(Int(y)) " + line)
-                }
-            }
-            // PROBE-END
+            spin(0.3)
+            check(labelFrame.intersects(stripFrame) && opened() == history.items.count - 2, "a click on a capture's date, at the edge of its cell, opens it (\(opened() ?? -1))")
+            cell.hover(at: nil)
+            spin(0.1)
+
+            // Report: the last events are always kept; a recording adds everything until it's stopped. To a folder of its own here.
+            (0..<BugReport.kept + 50).forEach { BugReport.shared.note("before \($0)") }
+            BugReport.shared.start(in: layoutWindow)
+            (0..<BugReport.kept + 50).forEach { BugReport.shared.note("during \($0)") }
+            let stillRecording = BugReport.shared.recording
+            let reportFolder = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-report-\(ProcessInfo.processInfo.processIdentifier)")
+            let report = BugReport.shared.stop(in: layoutWindow, to: reportFolder).flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+            check(stillRecording && !BugReport.shared.recording && !report.contains("before 50\n") && report.contains("before 51\n") && report.contains("during 0\n")
+                  && report.contains("during \(BugReport.kept + 49)\n") && report.components(separatedBy: "  source ").count > 2 * cells.count && report.contains("center hits itself"),
+                  "a report holds the last \(BugReport.kept) events before the recording, all of it, and where the thumbnails were")
+            try? FileManager.default.removeItem(at: reportFolder)
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
