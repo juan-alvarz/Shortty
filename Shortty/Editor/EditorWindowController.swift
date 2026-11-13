@@ -8,11 +8,14 @@ private final class EditorPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 
-    /// A click back into the editor after using another app: AppKit may still count it as key, so ask again.
+    /// A click back into the editor after using another app: AppKit may still count it as key and Shortty as active,
+    /// so go by the window server and ask again.
     /// On the way up, never down: switching the app's mode mid-press cancels the drag (a text box's aimed tail).
+    /// Not after a click that closed it.
     override func sendEvent(_ event: NSEvent) {
+        BugReport.shared.note(event, in: self)
         super.sendEvent(event)
-        if event.type == .leftMouseUp || event.type == .rightMouseUp, AppPresence.prepareForPanelFocus() { makeKey() }
+        if event.type == .leftMouseUp || event.type == .rightMouseUp, isVisible, !NSApp.isActive || !AppPresence.holdsKeyboard { AppPresence.focus(self) }
     }
 }
 
@@ -123,8 +126,7 @@ final class EditorWindowController: NSWindowController {
     /// without focus (WindowServer: "a foreground app can't steal keyboard focus"). `AppPresence` activates afterwards.
     private func present() {
         guard let window else { return }
-        AppPresence.prepareForPanelFocus()
-        window.makeKeyAndOrderFront(nil)
+        AppPresence.focus(window)
         window.orderFrontRegardless()
     }
 

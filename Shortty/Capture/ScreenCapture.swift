@@ -12,8 +12,8 @@ enum ScreenCapture {
     /// The whole display under the mouse pointer.
     static func captureScreen() async -> CGImage? {
         let mouse = NSEvent.mouseLocation
-        let display = (NSScreen.screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) } ?? 0) + 1
-        return await capture(["-D", "\(display)"])
+        let index = NSScreen.screens.firstIndex { NSMouseInRect(mouse, $0.frame, false) } ?? 0
+        return await capture(["-D", "\(index + 1)"], over: NSScreen.screens[index].frame)
     }
 
     /// One quiet frame of a fixed area (scrolling capture, Capture Text): no sound, not kept as the last capture.
@@ -33,7 +33,10 @@ enum ScreenCapture {
             NSSound.beep()
             return nil
         }
-        return await capture(["-l", "\(id)", "-o"])
+        let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]])?.first
+        let bounds = (info?[kCGWindowBounds as String] as! CFDictionary?).flatMap { CGRect(dictionaryRepresentation: $0) }
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0 // window bounds have a top-left origin
+        return await capture(["-l", "\(id)", "-o"], over: bounds.map { CGRect(x: $0.minX, y: primaryHeight - $0.maxY, width: $0.width, height: $0.height) })
     }
 
     /// The app's frontmost normal window (on screen, layer 0, not a sliver). The list comes front to back.
@@ -48,9 +51,20 @@ enum ScreenCapture {
         return window?[kCGWindowNumber as String] as? CGWindowID
     }
 
-    /// A fixed rectangle in global AppKit coordinates (bottom-left origin).
-    static func captureRect(_ rect: CGRect) async -> CGImage? {
-        await capture(["-R", rectArgument(rect)])
+    /// A fixed rectangle in global AppKit coordinates (bottom-left origin). `pointer` defaults to the pointer as it is now.
+    static func captureRect(_ rect: CGRect, pointer: Pointer? = nil) async -> CGImage? {
+        await capture(["-R", rectArgument(rect)], over: rect.integral, pointer: pointer)
+    }
+
+    /// The pointer as it is now, drawn by Shortty: `screencapture -C` draws nothing with `-R` (macOS 15.7), and an
+    /// area picked by dragging takes it from before the selector opened. Nil when the setting is off.
+    struct Pointer {
+        let image: NSImage, hotSpot: CGPoint, location: CGPoint
+        static func now() -> Pointer? {
+            guard AppSettings.shared.showsCursor else { return nil }
+            let cursor = NSCursor.currentSystem ?? .arrow
+            return Pointer(image: cursor.image, hotSpot: cursor.hotSpot, location: NSEvent.mouseLocation)
+        }
     }
 
     /// `screencapture -R` takes x,y,w,h in points with the origin at the top-left of the primary display.
@@ -59,7 +73,11 @@ enum ScreenCapture {
         return "\(Int(rect.minX)),\(Int(primaryHeight - rect.maxY)),\(Int(rect.width)),\(Int(rect.height))"
     }
 
-    private static func capture(_ options: [String], keepInHistory: Bool = true) async -> CGImage? {
+    /// Captures `options` with the user's sound setting. With `rect` (the area captured, global AppKit coordinates) the
+    /// pointer is drawn in when the setting is on. Quiet frames (`frame(of:)`) skip both: a pointer would break scroll
+    /// stitching and text recognition.
+    private static func capture(_ options: [String], keepInHistory: Bool = true, over rect: CGRect? = nil, pointer: Pointer? = nil) async -> CGImage? {
+        let pointer = rect == nil ? nil : pointer ?? Pointer.now()
         guard hasPermission() else {
             log.notice("capture skipped: Screen Recording not granted")
             return nil
@@ -70,10 +88,14 @@ enum ScreenCapture {
         let summary = image.map { "\($0.width)x\($0.height) blank=\($0.isBlank)" } ?? "no file"
         log.notice("screencapture \(options, privacy: .public) \(result, privacy: .public) image=\(summary, privacy: .public)")
 
-        guard let image else { return nil } // cancelled
+        guard var image else { return nil } // cancelled
         guard !image.isBlank else {
             showBlankCaptureAlert()
             return nil
+        }
+        if let pointer, let rect {
+            image = image.drawing(pointer, over: rect)
+            try? ImageExport.writePNG(image, to: url) // the history keeps what the editor shows
         }
         if keepInHistory { CaptureHistory.shared.keep(url) }
         return image
@@ -137,6 +159,25 @@ extension CGImage {
         guard let data = try? Data(contentsOf: url),
               let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    /// `pointer` drawn where it was, this image being `rect` (global AppKit coordinates) of the screen.
+    func drawing(_ pointer: ScreenCapture.Pointer, over rect: CGRect) -> CGImage {
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return self }
+        context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let scale = CGFloat(width) / rect.width
+        context.scaleBy(x: scale, y: scale)
+        let size = pointer.image.size // the hot spot is measured from the cursor image's top-left
+        let frame = CGRect(x: pointer.location.x - rect.minX - pointer.hotSpot.x,
+                           y: pointer.location.y - rect.minY - size.height + pointer.hotSpot.y, width: size.width, height: size.height)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        pointer.image.draw(in: frame)
+        NSGraphicsContext.restoreGraphicsState()
+        return context.makeImage() ?? self
     }
 
     /// True when every pixel is fully transparent (what screencapture returns when it has no screen access).

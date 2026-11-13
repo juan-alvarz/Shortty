@@ -120,8 +120,11 @@ Also in the editor:
 - **Colors**: 10 presets, R/G/B sliders, a hex field and a screen eyedropper. Each tool remembers its own thickness.
 - **Selection bar**: whatever is selected gets a small bar with its color, Duplicate, Bring to front, Send to back and Delete.
 - **Recent captures**: a slim bar along the bottom opens into your last captures (20 unless you pick up to 50 in Settings). Click one to keep editing it,
-  ⌘-click to pick several, drag one (or the picked ones) into any app with their edits, or delete them. Edits are saved as you work, and the thumbnails show them.
+  or step to the next newer or older one with ‹ and › on either side. ⌘-click to pick several, drag one (or the picked ones) into any app with their edits,
+  or delete them. Edits are saved as you work, and the thumbnails show them.
   A capture whose file can't be read shows a red "!"; delete it with ×.
+  Something misbehaves? **Report** records what happens in the editor until you stop it, with the last 100 clicks and key presses before
+  (key codes, never text), and shows the saved text file. It stays on your Mac.
 - **Drag and drop**: drag the handle next to Save into any app or a website's upload box. Nothing piles up in Downloads.
 - **Pin to screen**: float the finished picture above every window. Scroll or pinch to resize, Esc to close.
 - **Insert pictures**: paste, pick files, capture a new area, or drop image files onto the canvas.
@@ -195,6 +198,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 |---|---|
 | Start Shortty at login | Opens it in the menu bar when you log in. |
 | Play sound when capturing | The capture sound. |
+| Show the pointer in screenshots | Draws the mouse pointer into area, screen and active-window captures, where it was when you pressed the shortcut (or when a lazy shot fires). Off by default. Window-by-click, scrolling capture and Capture Text leave it out. |
 | Selection color | The outline while selecting an area or counting down. Follows your Mac's accent color until you pick another. |
 | Save folder | Where Save writes. Downloads unless you pick another. |
 | After a capture | What to show: the editor, a quick card in the corner of the screen with Copy, Save, Pin and Edit (drag its picture into any app, or click it to edit; it goes away on its own), or nothing but a short notice. Copy and Save also put the capture on the clipboard and in your save folder right away. Out of the box: editor + Copy. |

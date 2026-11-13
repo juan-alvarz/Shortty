@@ -378,9 +378,9 @@ private struct SelectionBar: View {
 
 // MARK: - History strip
 
-/// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it,
-/// ⌘-click to pick several, drag one (or the picked ones) into any app, × deletes one, the trash deletes them all.
-/// Remembers whether it's open.
+/// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it
+/// (or step with the arrows on either side), ⌘-click to pick several, drag one (or the picked ones) into any app,
+/// × deletes one, the trash deletes them all. Remembers whether it's open.
 struct HistoryStrip: View {
     static let expandedKey = "historyExpanded"
     static let foldedHeight: CGFloat = 26
@@ -395,6 +395,13 @@ struct HistoryStrip: View {
     /// What a drag from `url` carries: every picked capture (in strip order) when it's one of them, else just it.
     static func dragged(_ url: URL, picked: Set<URL>, in items: [URL]) -> [URL] {
         picked.contains(url) ? items.filter(picked.contains) : [url]
+    }
+
+    /// What the arrows try, nearest first: the captures past the open one toward `step` (-1 newer, on the left; 1 older).
+    /// Empty at either end, or when the open picture isn't a recent capture.
+    static func neighbors(of current: URL?, step: Int, in items: [URL]) -> [URL] {
+        guard let index = items.firstIndex(where: { $0 == current }) else { return [] }
+        return step < 0 ? items[..<index].reversed() : Array(items[(index + 1)...])
     }
 
     /// The files a drag hands over: each capture as its thumbnail shows it, edits drawn in (a temporary PNG),
@@ -444,27 +451,40 @@ struct HistoryStrip: View {
                     .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.08 : 0)))
             }
             .help("Hide recent captures")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(history.items, id: \.self) { url in
-                        HistoryThumb(url: url, current: url == model.sourceFile, picked: picked.contains(url),
-                                     revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
-                            if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
-                            picked = []
-                            guard url != model.sourceFile else { return } // already open: reloading would drop its undo history
-                            guard let image = CGImage.load(from: url) else { return } // the thumb shows it's unreadable; × removes it
-                            model.load(image, from: url)
-                        } dragged: {
-                            model.endEditing()
-                            model.saveEdits() // the open capture's latest edits go along
-                            return Self.exported(Self.dragged(url, picked: picked, in: history.items))
-                        } remove: {
-                            history.remove(url)
+            stepButton(-1)
+            ScrollViewReader { scroller in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(history.items, id: \.self) { url in
+                            HistoryThumb(url: url, current: url == model.sourceFile, picked: picked.contains(url),
+                                         revision: url == model.sourceFile ? model.savedRevision : 0) { modifiers in
+                                if modifiers.contains(.command) { return picked.formSymmetricDifference([url]) }
+                                picked = []
+                                let wasOpen = url == model.sourceFile, opened = open(url)
+                                BugReport.shared.note("thumbnail \(url.lastPathComponent) clicked, opened \(opened), was open \(wasOpen)")
+                            } dragged: {
+                                model.endEditing()
+                                model.saveEdits() // the open capture's latest edits go along
+                                return Self.exported(Self.dragged(url, picked: picked, in: history.items))
+                            } remove: {
+                                history.remove(url)
+                            }
                         }
                     }
+                    .padding(.trailing, 16 - HistoryThumb.gap / 2)
                 }
-                .padding(.trailing, 16)
+                // The arrows can step past the edge of the strip: keep the open capture in view.
+                .onChange(of: model.sourceFile) { _, file in
+                    if let file { scroller.scrollTo(file) }
+                }
             }
+            stepButton(1)
+            // For bugs that can't be made on demand: record, do it again, stop. The file opens in Finder.
+            PanelButton(title: BugReport.shared.recording ? "Stop recording" : "Report", prominent: BugReport.shared.recording) {
+                if !BugReport.shared.recording { return BugReport.shared.start(in: NSApp.keyWindow) }
+                if let file = BugReport.shared.stop(in: NSApp.keyWindow) { NSWorkspace.shared.activateFileViewerSelecting([file]) }
+            }
+            .help(BugReport.shared.recording ? "Save the recording and show the file" : "Record what happens in the editor, with the last \(BugReport.kept) events before, for a bug report")
             ChromeDivider()
             if confirmingClear {
                 PanelButton(title: "Delete all \(history.items.count)", prominent: true) {
@@ -482,6 +502,29 @@ struct HistoryStrip: View {
         .padding(.leading, 10)
         .padding(.trailing, 16)
         .frame(height: Self.expandedHeight)
+    }
+
+    /// Opens a capture; false when its file can't be read (the thumb shows that, × removes it).
+    private func open(_ url: URL) -> Bool {
+        guard url != model.sourceFile else { return true } // already open: reloading would drop its undo history
+        guard let image = CGImage.load(from: url) else { return false }
+        model.load(image, from: url)
+        return true
+    }
+
+    /// ‹ opens the next newer capture, › the next older one, skipping any that can't be read.
+    private func stepButton(_ step: Int) -> some View {
+        let targets = Self.neighbors(of: model.sourceFile, step: step, in: history.items)
+        return HoverButton { picked = []; _ = targets.first(where: open) } label: { hovering in
+            Icon(kind: .chevronUp, size: 12)
+                .rotationEffect(.degrees(step < 0 ? -90 : 90))
+                .foregroundStyle(hovering && !targets.isEmpty ? Color.white : Theme.chromeText)
+                .frame(width: 22, height: 50)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering && !targets.isEmpty ? 0.08 : 0)))
+                .opacity(targets.isEmpty ? 0.35 : 1)
+        }
+        .disabled(targets.isEmpty)
+        .help(step < 0 ? "Newer capture" : "Older capture")
     }
 
     /// What the strip adds to the window's height right now.
@@ -504,46 +547,55 @@ private struct HistoryThumb: View {
     /// The capture's file is gone or can't be read: marked, and only × does anything.
     @State private var broken = false
     @State private var hovering = false
+    /// Space between two thumbnails; it belongs to the cells, half each.
+    static let gap: CGFloat = 10
 
     var body: some View {
         VStack(spacing: 4) {
-            ZStack(alignment: .topTrailing) {
-                Group {
-                    if let thumbnail {
-                        Image(decorative: thumbnail, scale: 1).resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Color.white.opacity(0.06)
-                    }
-                }
-                .frame(width: 84, height: 50)
-                .overlay {
-                    if broken {
-                        Text("!")
-                            .font(.system(size: 13, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .frame(width: 20, height: 20)
-                            .background(Circle().fill(Theme.palette[1]))
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .overlay(RoundedRectangle(cornerRadius: 5)
-                    // Picked wins over current, so ⌘-clicking the open capture shows it's picked.
-                    .strokeBorder(broken ? Theme.palette[1] : picked ? .white : current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12),
-                                  lineWidth: current || picked || broken ? 2 : 1))
-                .overlay(DragSource(onClick: broken ? nil : click, onHover: { hovering = $0 }, files: { broken ? [] : dragged() }))
-                if hovering || broken {
-                    Button(action: remove) {
-                        Icon(kind: .close, size: 10)
-                            .foregroundStyle(.white)
-                            .frame(width: 18, height: 18)
-                            .background(Circle().fill(.black.opacity(0.75)))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(3)
-                    .help("Delete this capture")
+            Group {
+                if let thumbnail {
+                    Image(decorative: thumbnail, scale: 1).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    Color.white.opacity(0.06)
                 }
             }
+            .frame(width: 84, height: 50)
+            .overlay {
+                if broken {
+                    Text("!")
+                        .font(.system(size: 13, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Theme.palette[1]))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5)
+                // Picked wins over current, so ⌘-clicking the open capture shows it's picked.
+                .strokeBorder(broken ? Theme.palette[1] : picked ? .white : current ? Theme.accent : .white.opacity(hovering ? 0.45 : 0.12),
+                              lineWidth: current || picked || broken ? 2 : 1))
             Text(age).font(.system(size: 9.5).monospacedDigit()).foregroundStyle(.white.opacity(0.45))
+        }
+        // A wide capture fills its thumbnail far past the frame. Clipped from view, it still took the clicks meant for
+        // the thumbnails before it, which lie under it.
+        .allowsHitTesting(false)
+        // The whole cell takes the press, label and half the gap to each neighbor included: a click between two
+        // thumbnails or on the date did nothing.
+        .padding(.horizontal, Self.gap / 2)
+        .overlay(DragSource(onClick: broken ? nil : click, onHover: { hovering = $0 }, files: { broken ? [] : dragged() }))
+        .overlay(alignment: .topTrailing) {
+            if hovering || broken {
+                Button(action: remove) {
+                    Icon(kind: .close, size: 10)
+                        .foregroundStyle(.white)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(.black.opacity(0.75)))
+                }
+                .buttonStyle(.plain)
+                .padding(3)
+                .padding(.trailing, Self.gap / 2)
+                .help("Delete this capture")
+            }
         }
         .help(broken ? "This capture's file can't be read. × deletes it" : "Click to open, ⌘-click to pick several, drag into any app")
         .task(id: "\(url.path)#\(revision)") {

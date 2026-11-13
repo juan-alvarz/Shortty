@@ -26,6 +26,11 @@ final class AppSettings {
         didSet { defaults.set(captureSound, forKey: "captureSound") }
     }
 
+    /// Draw the mouse pointer into screenshots.
+    var showsCursor: Bool {
+        didSet { defaults.set(showsCursor, forKey: "showsCursor") }
+    }
+
     var hotkeys: [CaptureAction: Hotkey] {
         didSet {
             for (action, hotkey) in hotkeys { defaults.set(hotkey.rawValue, forKey: action.hotkeyKey) }
@@ -96,6 +101,7 @@ final class AppSettings {
         textCardFontSize = (stored.object(forKey: "textCardFontSize") as? Double ?? 14).clamped(to: TextCard.fontSizes)
         textCardWindowBar = stored.object(forKey: "textCardWindowBar") as? Bool ?? true
         captureSound = stored.object(forKey: "captureSound") as? Bool ?? true
+        showsCursor = stored.bool(forKey: "showsCursor")
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
         lazyDelay = (stored.object(forKey: "lazyDelay") as? Int ?? 3).clamped(to: Self.lazyDelayRange)
         hotkeys = Dictionary(uniqueKeysWithValues: CaptureAction.allCases.map { action in

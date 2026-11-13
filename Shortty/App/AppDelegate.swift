@@ -52,6 +52,29 @@ enum AppPresence {
         return true
     }
 
+    /// Gives a panel keyboard focus, then makes Shortty regular and active. That last step runs here too, not only on
+    /// `didBecomeKey`: AppKit can still count the panel as key after another app took the keyboard, so making it key
+    /// posted nothing, Shortty stayed in the background, and editor shortcuts typed into the other app.
+    static func focus(_ window: NSWindow) {
+        if window.isKeyWindow, !holdsKeyboard { window.resignKey() } // AppKit's stale "already key" would ask for nothing
+        prepareForPanelFocus()
+        window.makeKeyAndOrderFront(nil)
+        windowBecameKey(window)
+    }
+
+    /// Whether key presses reach Shortty, asked from the window server: the one answer that can't go stale, unlike
+    /// AppKit's `isKeyWindow` and `isActive`. Private SkyLight call, like `NSCursor.allowChangesInBackground`; AppKit's
+    /// answer if it's gone.
+    static var holdsKeyboard: Bool {
+        typealias Query = @convention(c) (UnsafeMutableRawPointer, UnsafeMutableRawPointer) -> Int32
+        let anyImage = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
+        guard let keyFocus = dlsym(anyImage, "SLPSGetKeyFocusProcess"), let pidOf = dlsym(anyImage, "GetProcessPID") else { return NSApp.isActive }
+        var process = ProcessSerialNumber(), isFront: UInt64 = 0, pid: pid_t = 0 // isFront: one byte, unused
+        guard unsafeBitCast(keyFocus, to: Query.self)(&process, &isFront) == 0, unsafeBitCast(pidOf, to: Query.self)(&process, &pid) == 0
+        else { return NSApp.isActive }
+        return pid == getpid()
+    }
+
     /// Titled windows (the editor, Settings), not the borderless overlays, toasts, cards and pins.
     static func isAppWindow(_ window: NSWindow) -> Bool { window.isVisible && window.styleMask.contains(.titled) }
 

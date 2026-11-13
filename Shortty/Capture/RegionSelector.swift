@@ -92,8 +92,7 @@ private final class SelectionSession {
             panel.contentView = view
             panels.append(panel)
             if NSMouseInRect(mouse, screen.frame, false) {
-                AppPresence.prepareForPanelFocus() // Esc and Space, also while the editor is open
-                panel.makeKeyAndOrderFront(nil)
+                AppPresence.focus(panel) // Esc and Space, also while the editor is open
                 panel.makeFirstResponder(view)
             } else {
                 panel.orderFrontRegardless()

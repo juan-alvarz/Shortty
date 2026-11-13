@@ -1043,7 +1043,8 @@ struct SelfCheck {
         let history = CaptureHistory(folder: historyFolder)
         let historyLimit = AppSettings.shared.historyLimit
         check(historyLimit == 20, "history keeps 20 captures out of the box")
-        for i in 0..<(historyLimit + 2) { history.store(solid(40 + i, 30, 0.2, 0.4, 0.8)) }
+        // Every fourth one is wide: filling its thumbnail it reaches over its neighbors, which must still take their own clicks.
+        for i in 0..<(historyLimit + 2) { history.store(solid(i % 4 == 2 ? 240 : 40 + i, 30, 0.2, 0.4, 0.8)) }
         func pngs() -> Int { ((try? FileManager.default.contentsOfDirectory(atPath: historyFolder.path)) ?? []).filter { $0.hasSuffix(".png") }.count }
         check(history.items.count == historyLimit && pngs() == historyLimit && CGImage.load(from: history.latest!)?.width == 40 + historyLimit + 1,
               "history keeps the newest \(historyLimit) captures, newest first")
@@ -1205,6 +1206,106 @@ struct SelfCheck {
             commandClick(swept[5], [])
             check(history.items.contains(unreadable) && layoutModel.sourceFile == history.items[1] && swept[5].files().isEmpty,
                   "an unreadable capture stays (marked) when clicked; nothing opens or drags")
+
+            // The strip and the canvas don't share pointer events: each thumbnail listens only over its own visible box
+            // (inside SwiftUI an `.inVisibleRect` area spanned the whole strip, so hover stuck on the wrong one).
+            let layoutCanvas = find(CanvasScrollView.self, in: layoutWindow.contentView!)!
+            let canvasFrame = layoutCanvas.convert(layoutCanvas.bounds, to: nil)
+            let listening = dragSources(in: layoutWindow.contentView!).flatMap { view in view.trackingAreas.map { (view, view.convert($0.rect, to: nil)) } }
+            check(!listening.isEmpty && listening.allSatisfy { view, area in view.convert(view.bounds, to: nil).contains(area) }
+                  && !swept.contains { canvasFrame.intersects($0.convert($0.bounds, to: nil)) },
+                  "thumbnails and the drag handle listen only over themselves; none over the canvas")
+            let canvasDocument = layoutCanvas.documentView!
+            check(canvasFrame.contains(canvasDocument.convert(canvasDocument.visibleRect, to: nil)), "the canvas listens only inside itself")
+
+            // Pointing hand over any thumbnail, unreadable ones too; the closed hand only while pressed.
+            func cursorAfter(_ view: DragSourceView, _ type: NSEvent.EventType) -> NSCursor {
+                let center = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: nil)
+                view.hover(at: center)
+                switch type {
+                case .leftMouseDown, .leftMouseUp:
+                    let event = NSEvent.mouseEvent(with: type, location: center, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                                   context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!
+                    type == .leftMouseDown ? view.mouseDown(with: event) : view.mouseUp(with: event)
+                default:
+                    view.cursorUpdate(with: crossing(.cursorUpdate, view, CGPoint(x: view.bounds.midX, y: view.bounds.midY)))
+                }
+                return NSCursor.current
+            }
+            let brokenThumb = swept[5]
+            check(cursorAfter(swept[2], .cursorUpdate) == .pointingHand && cursorAfter(brokenThumb, .cursorUpdate) == .pointingHand
+                  && cursorAfter(brokenThumb, .leftMouseDown) == .closedHand && cursorAfter(brokenThumb, .leftMouseUp) == .pointingHand,
+                  "thumbnails show the pointing hand, readable or not, and the closed hand only while pressed")
+            brokenThumb.hover(at: nil)
+            spin(0.1)
+
+            // ‹ and › beside the strip step to the next newer or older capture.
+            check(HistoryStrip.neighbors(of: stripItems[1], step: -1, in: stripItems) == [stripItems[0]]
+                  && HistoryStrip.neighbors(of: stripItems[1], step: 1, in: stripItems) == [stripItems[2], stripItems[3]]
+                  && HistoryStrip.neighbors(of: stripItems[0], step: -1, in: stripItems).isEmpty
+                  && HistoryStrip.neighbors(of: nil, step: 1, in: stripItems).isEmpty,
+                  "the arrows try the captures past the open one, nearest first; nothing past the ends or for a picture from elsewhere")
+            let stripScroll = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.compactMap(\.enclosingScrollView).first!
+            let stripFrame = stripScroll.convert(stripScroll.bounds, to: nil)
+            func arrow(_ step: Int) {
+                let point = CGPoint(x: step < 0 ? stripFrame.minX - 21 : stripFrame.maxX + 21, y: stripFrame.midY)
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: point, modifierFlags: [], timestamp: 0, windowNumber: layoutWindow.windowNumber,
+                                                              context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+                }
+                spin(0.3)
+            }
+            func opened() -> Int? { layoutModel.sourceFile.flatMap(history.items.firstIndex) }
+            arrow(1)
+            let older = opened()
+            arrow(-1)
+            let newer = opened()
+            layoutModel.load(image, from: history.items[4])
+            spin(0.2)
+            arrow(1)
+            let skipped = opened()
+            check(older == 2 && newer == 1 && skipped == 6, "› opens the next older capture, ‹ the next newer one, skipping one that can't be read (\(older ?? -1), \(newer ?? -1), \(skipped ?? -1))")
+            layoutModel.load(image, from: history.items[0])
+            spin(0.2)
+            arrow(-1)
+            check(opened() == 0, "‹ does nothing on the newest capture")
+            layoutModel.load(image, from: history.items[history.items.count - 2])
+            spin(0.2)
+            arrow(1)
+            spin(0.3)
+            let lastThumb = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.max { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }!
+            check(opened() == history.items.count - 1 && stripFrame.contains(lastThumb.convert(lastThumb.bounds, to: nil)),
+                  "stepping past the edge of the strip scrolls the open capture into view (\(opened() ?? -1) of \(history.items.count), \(lastThumb.convert(lastThumb.bounds, to: nil)) in \(stripFrame))")
+            // Nothing in the strip is dead: the date under a thumbnail and the gap beside it open it too. Only × stays apart.
+            let cells = dragSources(in: layoutWindow.contentView!).filter { $0.bounds.width > 60 }.sorted { $0.convert($0.bounds, to: nil).minX < $1.convert($1.bounds, to: nil).minX }
+            let cell = cells[cells.count - 3], cellFrame = cell.convert(cell.bounds, to: nil)
+            cell.hover(at: CGPoint(x: cellFrame.midX, y: cellFrame.midY))
+            spin(0.3)
+            func hitsCell(_ x: CGFloat, _ y: CGFloat) -> Bool { layoutWindow.contentView!.hitTest(CGPoint(x: x, y: y)) is DragSourceView }
+            let deadSpots = stride(from: stripFrame.minX + 1, to: stripFrame.maxX, by: 2).filter { x in !hitsCell(x, cellFrame.midY) || !hitsCell(x, cellFrame.minY + 4) }
+            check(deadSpots.isEmpty && cellFrame.height > 60 && !hitsCell(cellFrame.maxX - 18, cellFrame.maxY - 12),
+                  "every point of the strip belongs to a thumbnail, its date and the gaps too; × is its own button (dead at \(deadSpots.prefix(6)), cell \(cellFrame))")
+            let labelOf = cells[cells.count - 2], labelFrame = labelOf.convert(labelOf.bounds, to: nil)
+            for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                layoutWindow.sendEvent(NSEvent.mouseEvent(with: type, location: CGPoint(x: labelFrame.minX + 1, y: labelFrame.minY + 4), modifierFlags: [], timestamp: 0,
+                                                          windowNumber: layoutWindow.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+            }
+            spin(0.3)
+            check(labelFrame.intersects(stripFrame) && opened() == history.items.count - 2, "a click on a capture's date, at the edge of its cell, opens it (\(opened() ?? -1))")
+            cell.hover(at: nil)
+            spin(0.1)
+
+            // Report: the last events are always kept; a recording adds everything until it's stopped. To a folder of its own here.
+            (0..<BugReport.kept + 50).forEach { BugReport.shared.note("before \($0)") }
+            BugReport.shared.start(in: layoutWindow)
+            (0..<BugReport.kept + 50).forEach { BugReport.shared.note("during \($0)") }
+            let stillRecording = BugReport.shared.recording
+            let reportFolder = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-report-\(ProcessInfo.processInfo.processIdentifier)")
+            let report = BugReport.shared.stop(in: layoutWindow, to: reportFolder).flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+            check(stillRecording && !BugReport.shared.recording && !report.contains("before 50\n") && report.contains("before 51\n") && report.contains("during 0\n")
+                  && report.contains("during \(BugReport.kept + 49)\n") && report.components(separatedBy: "  source ").count > 2 * cells.count && report.contains("center hits itself"),
+                  "a report holds the last \(BugReport.kept) events before the recording, all of it, and where the thumbnails were")
+            try? FileManager.default.removeItem(at: reportFolder)
         }
         snapshot(layoutWindow.contentView!, "history-expanded.png")
         UserDefaults.standard.removeObject(forKey: HistoryStrip.expandedKey)
@@ -1243,6 +1344,17 @@ struct SelfCheck {
         snapshot(card.contentView!, "quick-card.png")
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
+        // MARK: Pointer in screenshots
+        check(!settings.showsCursor && ScreenCapture.Pointer.now() == nil, "screenshots leave the pointer out by default")
+        settings.showsCursor = true
+        check(ScreenCapture.Pointer.now() != nil && UserDefaults.standard.bool(forKey: "showsCursor"), "the pointer setting takes the pointer and is remembered")
+        let pointerDot = NSImage(size: CGSize(width: 2, height: 2), flipped: false) { NSColor(srgbRed: 1, green: 0, blue: 0, alpha: 1).setFill(); $0.fill(); return true }
+        let withPointer = bitmap(20, 10, CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)).makeImage()!
+            .drawing(ScreenCapture.Pointer(image: pointerDot, hotSpot: .zero, location: CGPoint(x: 102, y: 104)), over: CGRect(x: 100, y: 100, width: 10, height: 5))
+        check(same(pixel(withPointer, 5, 3), [255, 0, 0]) && same(pixel(withPointer, 1, 1), [0, 0, 0]) && same(pixel(withPointer, 9, 3), [0, 0, 0]),
+              "an area capture gets the pointer drawn at its tip, at the capture's scale")
+        settings.showsCursor = false
+        UserDefaults.standard.removeObject(forKey: "showsCursor")
         // MARK: Selection color
         check(settings.selectionColorHex == nil && Color(nsColor: settings.selectionColor).hex == Color(nsColor: .controlAccentColor).hex,
               "the selection overlay follows the Mac's accent color out of the box")
@@ -1446,6 +1558,8 @@ struct SelfCheck {
         spin(1.5)
         check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
               "an open editor makes Shortty a regular app and keeps keyboard focus (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        // AppKit's own answer can be stale; the window server's is the one a click into the editor goes by.
+        check(AppPresence.holdsKeyboard, "the window server sends key presses to the open editor")
         // The editor stays open while another app is used: Shortty is regular but inactive, the state where WindowServer
         // refuses a non-activating panel keyboard focus. It steps back to menu bar only, then takes focus again.
         NSApp.deactivate()
@@ -1458,6 +1572,18 @@ struct SelfCheck {
         spin(1.5)
         check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
               "after another app was active, a new capture gives the editor focus again (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
+        // Seen in the app: AppKit still counts the editor as key while Shortty sits in the background as menu bar only,
+        // so no "became key" arrives. A click into it must still take focus and make Shortty regular again.
+        NSApp.deactivate()
+        NSApp.setActivationPolicy(.accessory)
+        spin(0.5)
+        let editorCanvas = find(CanvasScrollView.self, in: editorWindow.contentView!)!
+        let inCanvas = editorCanvas.convert(CGPoint(x: editorCanvas.bounds.midX, y: editorCanvas.bounds.midY), to: nil)
+        editorWindow.sendEvent(NSEvent.mouseEvent(with: .leftMouseUp, location: inCanvas, modifierFlags: [], timestamp: 0, windowNumber: editorWindow.windowNumber,
+                                                  context: nil, eventNumber: 0, clickCount: 1, pressure: 1)!)
+        spin(1)
+        check(NSApp.activationPolicy() == .regular && editorWindow.isKeyWindow,
+              "a click into an editor that still counts as key, Shortty in the background, takes focus again (policy \(NSApp.activationPolicy().rawValue), key \(editorWindow.isKeyWindow))")
         check(editor.handle(key("w", kVK_ANSI_W, in: editorWindow, flags: .command)) && !editorWindow.isVisible, "⌘W closes the editor")
         spin(0.3)
         check(NSApp.activationPolicy() == .accessory, "closing the last window leaves only the menu bar icon")

@@ -2,6 +2,9 @@
 
 Critical changes only: behavior users notice, data or settings formats, architecture moves. Newest first.
 
+- **2026-11-12** · Report in the recent-captures strip records editor events (`BugReport`) to `~/Library/Caches/com.shortty.Shortty/Reports`. A thumbnail cell takes clicks over its whole area; its picture takes none.
+- **2026-11-09** · New setting: UserDefaults `showsCursor` (Bool, default false) draws the pointer into captures.
+- **2026-11-09** · Recent captures: ‹ › arrows step between captures; thumbnails show the pointing hand. All panel focus goes through `AppPresence.focus(_:)`, which goes by the window server's key focus (`AppPresence.holdsKeyboard`), not AppKit's.
 - **2026-11-03** · OpenSpec removed (`openspec/`, its skills and commands). Project memory lives in `docs/memory/`.
 - **2026-11-03** · Install target is `/Applications/Shortty.app` for every account. `install.sh --profile-only` is gone; delete old `~/Applications/Shortty.app` copies.
 - **2026-11-03** · New setting: UserDefaults `historyLimit` (Int, 1–50, default 20) replaces the fixed 20-capture history.
