@@ -24,6 +24,7 @@ final class EditorModel {
     var tool: Tool = .pencil {
         didSet {
             endEditing()
+            if isPlaying { isPlaying = false }
             if tool != .select { selection = nil; group = [] }
             if tool != .crop { cropBox = nil }
             if tool != .ruler { rulerPoint = nil }
@@ -106,6 +107,10 @@ final class EditorModel {
         saveEdits() // the capture being replaced keeps its edits
         self.image = image
         sourceFile = file
+        frames = file.flatMap { $0.pathExtension == "gif" ? CGImageSourceCreateWithURL($0 as CFURL, nil) : nil }
+        frameCount = frames.map(CGImageSourceGetCount) ?? 1
+        frame = 0
+        isPlaying = isGIF
         hasImage = true
         let saved = file.flatMap(CaptureHistory.loadEdits(for:))
         annotations = saved?.annotations ?? []
@@ -118,6 +123,39 @@ final class EditorModel {
         redoStack = []
         zoom = nil
         pendingSave?.cancel() // just restored: nothing new to write
+    }
+
+    // MARK: GIF recordings
+
+    /// The frames of a GIF recording (its history file is a .gif). `image` is the frame shown, and what's drawn is
+    /// on every frame: Copy, Save and drags hand over a GIF.
+    @ObservationIgnored private var frames: CGImageSource?
+    private(set) var frameCount = 1
+    private(set) var frame = 0
+    var isGIF: Bool { frameCount > 1 }
+    private var gif: URL? { isGIF ? sourceFile : nil }
+    private var edits: SavedEdits { SavedEdits(annotations: annotations, crop: crop) }
+    @ObservationIgnored private var playback: Task<Void, Never>?
+
+    /// Loops through the frames. Picking a tool or pressing on the picture pauses it, so you draw on a still frame.
+    var isPlaying = false {
+        didSet {
+            playback?.cancel()
+            guard isPlaying else { return }
+            playback = Task { [weak self] in
+                while (try? await Task.sleep(for: .seconds(1) / GIF.framesPerSecond)) != nil, let self {
+                    self.showFrame((self.frame + 1) % self.frameCount)
+                }
+            }
+        }
+    }
+
+    /// shortcut: ImageIO decodes a GIF from its start, so jumping back in a long full-screen recording takes up to
+    /// half a second (playing forward is 6 ms a frame). Keep decoded frames if scrubbing needs to be smooth.
+    func showFrame(_ index: Int) {
+        guard let frames, let next = CGImageSourceCreateImageAtIndex(frames, index, nil) else { return }
+        frame = index
+        image = next
     }
 
     // MARK: Saving edits (captures from the history)
@@ -144,7 +182,7 @@ final class EditorModel {
         pendingSave = nil
         guard let sourceFile else { return }
         // ponytail: renders at full size, then scales down; fine at one render per half second of editing.
-        CaptureHistory.saveEdits(SavedEdits(annotations: annotations, crop: crop), for: sourceFile) { image.rendering(annotations, crop: crop) }
+        CaptureHistory.saveEdits(edits, for: sourceFile) { image.rendering(annotations, crop: crop) }
         savedRevision += 1
     }
 
@@ -458,17 +496,28 @@ final class EditorModel {
 
     func copy() {
         endEditing()
-        ImageExport.copy(rendered)
-        onFinish?(ImageExport.copiedNotice)
+        do {
+            if let gif { try ImageExport.copyGIF(gif, edits: edits, backdrop: backdrop) } else { ImageExport.copy(rendered) }
+            onFinish?(ImageExport.copiedNotice)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     func save() {
         endEditing()
         do {
-            let url = try ImageExport.save(rendered, to: AppSettings.shared.saveFolder)
+            let folder = AppSettings.shared.saveFolder
+            let url = try gif.map { try ImageExport.saveGIF($0, edits: edits, backdrop: backdrop, to: folder) } ?? ImageExport.save(rendered, to: folder)
             onFinish?(ImageExport.savedNotice(url))
         } catch {
             NSAlert(error: error).runModal()
         }
+    }
+
+    /// What the drag handle hands over: the finished picture as a temporary PNG, or GIF.
+    func temporaryFile() throws -> URL {
+        endEditing()
+        return try gif.map { try ImageExport.temporaryGIF($0, edits: edits, backdrop: backdrop) } ?? ImageExport.temporaryFile(rendered)
     }
 }

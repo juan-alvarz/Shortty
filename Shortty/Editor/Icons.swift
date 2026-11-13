@@ -4,7 +4,7 @@ import SwiftUI
 /// Hand-drawn line icons (20×20 design grid, 1.5pt stroke) so the editor doesn't depend on SF Symbols.
 enum IconKind {
     case copy, save, drag, pin, insertImage, backdrop, step, crop, cursor, pencil, arrow, text, rectangle, ellipse, magnifier, blur, spotlight,
-         recognizeText, textCard, ruler, eyedropper, duplicate, bringToFront, sendToBack, trash, close, chevronUp
+         recognizeText, textCard, ruler, eyedropper, duplicate, bringToFront, sendToBack, trash, close, chevronUp, play, pause
 }
 
 struct Icon: View {
@@ -190,6 +190,16 @@ struct Icon: View {
             case .chevronUp:
                 context.stroke(Path { $0.addLines([CGPoint(x: 4, y: 13), CGPoint(x: 10, y: 7), CGPoint(x: 16, y: 13)]) }, with: .foreground,
                                style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            case .play:
+                var path = Path()
+                path.addLines([CGPoint(x: 6.5, y: 4), CGPoint(x: 15.5, y: 10), CGPoint(x: 6.5, y: 16)])
+                path.closeSubpath()
+                context.stroke(path, with: .foreground, style: style)
+            case .pause:
+                var path = Path()
+                path.addLines([CGPoint(x: 7, y: 4.5), CGPoint(x: 7, y: 15.5)])
+                path.addLines([CGPoint(x: 13, y: 4.5), CGPoint(x: 13, y: 15.5)])
+                context.stroke(path, with: .foreground, style: style)
             }
         }
         .frame(width: size, height: size)

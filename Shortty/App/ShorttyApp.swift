@@ -28,8 +28,8 @@ private struct CaptureMenu: View {
     private let capture = CaptureController.shared
 
     var body: some View {
-        if capture.countdown != nil {
-            Button("Cancel Lazy Shot") { capture.cancel() }
+        if capture.countdown != nil { // a recording stopped early keeps what it has
+            Button(capture.isRecording ? "Stop Recording" : "Cancel Countdown") { capture.cancel() }
             Divider()
         }
         item(.region)
@@ -43,6 +43,10 @@ private struct CaptureMenu: View {
         Divider()
         item(.lazyRegion)
         item(.lazyScreen)
+        Divider()
+        item(.gifRegion)
+        item(.gifScreen)
+        item(.gifWindow)
         Divider()
         item(.reopen)
             .disabled(!EditorWindowController.shared.canReopen)
@@ -60,6 +64,7 @@ private struct CaptureMenu: View {
     private func item(_ action: CaptureAction) -> some View {
         var title = action.title
         if action.isLazy { title += " (\(settings.lazyDelay)s)" }
+        if action.isGIF { title += " (\(settings.gifDuration)s)" }
         if let hotkey = settings.hotkeys[action], !hotkey.isNone { title += "    \(hotkey.display)" }
         return Button(title) { capture.perform(action) }
     }

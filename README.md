@@ -20,7 +20,7 @@ Capture, mark up and share in seconds, in the spirit of [Shottr](https://shottr.
 
 ## Features
 
-- **Every kind of capture.** Region, window, screen, scrolling pages, delayed shots, or just the text and QR codes in an area, straight to the clipboard.
+- **Every kind of capture.** Region, window, screen, scrolling pages, delayed shots, short GIF recordings, or just the text and QR codes in an area, straight to the clipboard.
 - **An editor where nothing gets flattened.** Arrows, text callouts, shapes, numbered steps, magnifier, blur and spotlight. Select anything later to move, resize or recolor it.
 - **Text Card.** Drag over code, a terminal or a chat, and it's redrawn as a clean window-like card with every word in its original color, so syntax highlighting survives. Tune the background, size and title bar, fix a word, then share it.
 - **Pick up where you left off.** The last 20 captures keep their edits, even after a relaunch.
@@ -88,9 +88,20 @@ Every action is in the menu bar menu, and each can have a global shortcut ([Shor
 | Capture Text | Drag over an area: a QR code's contents, or else its text, go straight to the clipboard. A small notice says what was copied. |
 | Lazy Region | Drag the area first, then a countdown runs and that exact area is captured. |
 | Lazy Screen | Countdown, then the display under the pointer. |
+| GIF Region | Drag the area first, then a countdown runs and that exact area is recorded as a GIF. |
+| GIF Screen | Countdown, then the display under the pointer is recorded. |
+| GIF Window | Countdown, then the front window of the app you're in is recorded, where it is at that moment. |
 | Reopen Last Capture | Brings back the editor with the latest capture and its edits, even after a relaunch. |
 
-During a countdown the seconds show next to the menu bar icon, and the menu has "Cancel Lazy Shot".
+During a countdown the seconds show next to the menu bar icon, and the menu has "Cancel Countdown".
+
+**GIFs.** A recording starts after the lazy shot countdown and runs for the GIF length: 5 seconds unless you change it
+in Settings → Shortcuts. The seconds left show next to the menu bar icon, and a dashed outline marks the area. To end
+sooner, choose Stop Recording in the menu or press the same shortcut again; what was recorded so far is kept. The GIF
+has 10 frames a second at the size you see on screen, with the pointer and without sound. Long or large recordings come
+out smaller, so the file stays reasonable. From there it's a capture like any other: it opens in the editor (or on the
+card, or nowhere, as Settings → After a capture says), it's in the recent captures, and Copy and Save hand over a GIF.
+Copy puts it on the clipboard as a file, so pasting keeps the animation; Save writes `shortty-<timestamp>-recording.gif`.
 
 ## Edit
 
@@ -123,6 +134,10 @@ Also in the editor:
   or step to the next newer or older one with ‹ and › on either side. ⌘-click to pick several, drag one (or the picked ones) into any app with their edits,
   or delete them. Edits are saved as you work, and the thumbnails show them.
   A capture whose file can't be read shows a red "!"; delete it with ×.
+- **GIF recordings**: a bar under the picture plays or pauses the recording (Space), and its slider stops on any frame.
+  Draw on it with any tool. What you draw, the crop and the backdrop are on every frame of the GIF that Copy, Save and
+  drags hand over; nothing can appear partway through or follow something that moves. Pin to screen, Text Card and
+  Recognize Text work on the frame shown. In the recent captures a recording has a GIF badge.
 - **Drag and drop**: drag the handle next to Save into any app or a website's upload box. Nothing piles up in Downloads.
 - **Pin to screen**: float the finished picture above every window. Scroll or pinch to resize, Esc to close.
 - **Insert pictures**: paste, pick files, capture a new area, or drop image files onto the canvas.
@@ -167,7 +182,7 @@ The picture fills the window. Tools sit in a floating dock at the bottom, output
 ### Shortcuts
 
 **Capture shortcuts are yours to pick.** None are set out of the box: record them in Settings → Shortcuts, which
-lists every action with what it does. The lazy shot delay (1–30 s, default 3) is there too.
+lists every action with what it does. The lazy shot delay (1–30 s, default 3) and the GIF length (1–30 s, default 5) are there too.
 
 **In the editor**, hold `⌘` to see each tool's key on its button.
 
@@ -176,6 +191,7 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | `V` `P` `A` `T` `R` `O` | Select, Pencil, Arrow, Text, Rectangle, Ellipse |
 | `N` `M` `B` `S` `X` `K` `C` `U` | Numbered steps, Magnifier, Blur, Spotlight, Recognize Text, Text Card, Crop, Ruler |
 | Return | Apply the crop box |
+| Space | Play or pause a GIF recording |
 | Shift while drawing | Pencil: straight line (add Control to snap to 45°) · Arrow: snaps to 45° · Rectangle/Ellipse: square/circle |
 | `1` / `2` held | Ruler: measure sideways only / up and down only |
 | Shift while editing | Corner resize keeps proportions · Move locks to one axis · Arrow middle handle straightens |

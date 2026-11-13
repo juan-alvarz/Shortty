@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 
 /// Toolbar handle: drag the annotated image straight into any app or website upload box.
-/// It hands over a temporary PNG file (what upload boxes expect); nothing is saved to Downloads.
+/// It hands over a temporary PNG file, or GIF (what upload boxes expect); nothing is saved to Downloads.
 struct DragHandle: View {
     let model: EditorModel
     @State private var hovering = false
@@ -13,10 +13,7 @@ struct DragHandle: View {
             .foregroundStyle(hovering ? Color.white : Theme.chromeText)
             .frame(width: 28, height: 28)
             .background(RoundedRectangle(cornerRadius: 6).fill(.white.opacity(hovering ? 0.08 : 0)))
-            .overlay(DragSource(isEditorPicture: true) {
-                model.endEditing()
-                return (try? ImageExport.temporaryFile(model.rendered)).map { [$0] } ?? []
-            })
+            .overlay(DragSource(isEditorPicture: true) { (try? model.temporaryFile()).map { [$0] } ?? [] })
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
             .tooltip("Drag into any app", shortcut: nil, visible: hovering)

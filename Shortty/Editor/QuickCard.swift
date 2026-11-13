@@ -4,6 +4,7 @@ import SwiftUI
 /// After a capture (Settings → After a capture → Show card): a small card in the corner of the screen with the
 /// picture and Copy, Save, Pin and Edit. Drag the picture into any app, or click it to edit. Doesn't take focus from
 /// the app you're in, and goes away on its own unless the pointer is over it. The capture stays in the history.
+/// A GIF recording plays on it, and Copy, Save and drags hand over the GIF (it can't be pinned).
 enum QuickCard {
     private static var panel: OverlayPanel?
 
@@ -35,21 +36,33 @@ private struct QuickCardView: View {
     let image: CGImage
     let file: URL?
     @State private var hovering = false
+    private var gif: URL? { file?.pathExtension == "gif" ? file : nil }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity, maxHeight: 170)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(DragSource(onClick: { _ in edit() }) { (try? ImageExport.temporaryFile(image)).map { [$0] } ?? [] })
-                .help("Click to edit, or drag into any app")
+            Group {
+                if let gif {
+                    AnimatedImage(url: gif, size: CGSize(width: image.width, height: image.height))
+                        .aspectRatio(CGSize(width: image.width, height: image.height), contentMode: .fit)
+                } else {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: 170)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(DragSource(onClick: { _ in edit() }) {
+                (try? gif.map { try ImageExport.temporaryGIF($0) } ?? ImageExport.temporaryFile(image)).map { [$0] } ?? []
+            })
+            .help("Click to edit, or drag into any app")
             HStack(spacing: 6) {
-                PanelButton(title: "Copy") { finish(ImageExport.copiedNotice) { ImageExport.copy(image) } }
+                PanelButton(title: "Copy") { copy() }
                 PanelButton(title: "Save") { save() }
-                ToolButton(icon: .pin, tooltip: nil) { pin() }
-                    .help("Pin to screen")
+                if gif == nil {
+                    ToolButton(icon: .pin, tooltip: nil) { pin() }
+                        .help("Pin to screen")
+                }
                 Spacer(minLength: 0)
                 PanelButton(title: "Edit", prominent: true) { edit() }
                 ToolButton(icon: .close, tooltip: nil) { QuickCard.dismiss() }
@@ -78,9 +91,19 @@ private struct QuickCardView: View {
         QuickCard.dismiss()
     }
 
+    private func copy() {
+        do {
+            if let gif { try ImageExport.copyGIF(gif) } else { ImageExport.copy(image) }
+            finish(ImageExport.copiedNotice) {}
+        } catch {
+            finish("Couldn't copy: \(error.localizedDescription)") {}
+        }
+    }
+
     private func save() {
         do {
-            let url = try ImageExport.save(image, to: AppSettings.shared.saveFolder)
+            let folder = AppSettings.shared.saveFolder
+            let url = try gif.map { try ImageExport.saveGIF($0, to: folder) } ?? ImageExport.save(image, to: folder)
             finish(ImageExport.savedNotice(url)) {}
         } catch {
             finish("Couldn't save: \(error.localizedDescription)") {}
@@ -93,5 +116,26 @@ private struct QuickCardView: View {
         let frame = QuickCard.frame
         QuickCard.dismiss()
         FloatingToast.show(message, near: frame)
+    }
+}
+
+/// SwiftUI's `Image` draws only a GIF's first frame; `NSImageView` plays it.
+private struct AnimatedImage: NSViewRepresentable {
+    let url: URL
+    let size: CGSize
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.image = NSImage(contentsOf: url)
+        view.animates = true
+        view.imageScaling = .scaleProportionallyUpOrDown
+        return view
+    }
+
+    func updateNSView(_ view: NSImageView, context: Context) {}
+
+    /// Whatever it's offered: an image view asks for its picture's full size otherwise.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSImageView, context: Context) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: size)
     }
 }

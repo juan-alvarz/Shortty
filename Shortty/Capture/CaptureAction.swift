@@ -3,9 +3,10 @@ import Foundation
 /// Everything the user can trigger from the menu bar or a global shortcut. No shortcuts are set out of the box.
 enum CaptureAction: String, CaseIterable {
     case region, screen, lazyRegion, lazyScreen, reopen, scrolling, // new cases go last: hotkey ids follow this order
-         repeatRegion, window, activeWindow, captureText
+         repeatRegion, window, activeWindow, captureText, gifRegion, gifScreen, gifWindow
 
     var isLazy: Bool { self == .lazyRegion || self == .lazyScreen }
+    var isGIF: Bool { self == .gifRegion || self == .gifScreen || self == .gifWindow }
 
     var title: String {
         switch self {
@@ -19,6 +20,9 @@ enum CaptureAction: String, CaseIterable {
         case .window: "Capture Window"
         case .activeWindow: "Capture Active Window"
         case .captureText: "Capture Text"
+        case .gifRegion: "GIF Region"
+        case .gifScreen: "GIF Screen"
+        case .gifWindow: "GIF Window"
         }
     }
 
@@ -35,6 +39,9 @@ enum CaptureAction: String, CaseIterable {
         case .reopen: "Brings back the editor with the latest capture and its edits."
         case .lazyRegion: "Pick the area first, then a countdown runs and that area is captured."
         case .lazyScreen: "A countdown, then the display under the pointer."
+        case .gifRegion: "Pick the area first, then a countdown runs and that area is recorded."
+        case .gifScreen: "A countdown, then the display under the pointer is recorded."
+        case .gifWindow: "A countdown, then the front window of the app you're in is recorded."
         }
     }
 

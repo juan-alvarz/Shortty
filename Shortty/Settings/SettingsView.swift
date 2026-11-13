@@ -203,11 +203,20 @@ struct ShortcutsSettingsView: View {
             }
             Section("Lazy shots") {
                 ForEach([CaptureAction.lazyRegion, .lazyScreen], id: \.self, content: shortcutRow)
-                LabeledContent("Delay") { delayField }
+                LabeledContent("Delay") { secondsField(\.lazyDelay, in: AppSettings.lazyDelayRange) }
+            }
+            Section("GIFs") {
+                ForEach([CaptureAction.gifRegion, .gifScreen, .gifWindow], id: \.self, content: shortcutRow)
+                LabeledContent {
+                    secondsField(\.gifDuration, in: AppSettings.gifDurationRange)
+                } label: {
+                    Text("Length")
+                    Text("Recording starts after the lazy shot delay. Stop it sooner from the menu, or with the same shortcut.")
+                }
             }
         }
         .formStyle(.grouped)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(height: 640) // scrolls: every action with its summary is taller than a laptop screen
     }
 
     /// The action, what it does, and its shortcut (none until you record one).
@@ -220,11 +229,10 @@ struct ShortcutsSettingsView: View {
         }
     }
 
-    /// Saves on Return or when you leave the field, clamped to 1–30; anything that isn't a number snaps back.
-    private var delayField: some View {
-        let range = AppSettings.lazyDelayRange
-        return HStack(spacing: 6) {
-            TextField("", value: Binding(get: { settings.lazyDelay }, set: { settings.lazyDelay = $0.clamped(to: range) }), format: .number)
+    /// Saves on Return or when you leave the field, clamped to `range`; anything that isn't a number snaps back.
+    private func secondsField(_ value: ReferenceWritableKeyPath<AppSettings, Int>, in range: ClosedRange<Int>) -> some View {
+        HStack(spacing: 6) {
+            TextField("", value: Binding(get: { settings[keyPath: value] }, set: { settings[keyPath: value] = $0.clamped(to: range) }), format: .number)
                 .labelsHidden()
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)

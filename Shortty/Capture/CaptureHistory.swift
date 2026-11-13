@@ -2,8 +2,8 @@ import AppKit
 import ImageIO
 import Observation
 
-/// Recent captures as PNG files in Caches, newest first, at most `AppSettings.historyLimit`. The newest is what
-/// "Reopen Last Capture" opens after a relaunch; the editor's history strip shows them all.
+/// Recent captures as PNG files (GIF recordings as GIFs) in Caches, newest first, at most `AppSettings.historyLimit`.
+/// The newest is what "Reopen Last Capture" opens after a relaunch; the editor's history strip shows them all.
 @Observable
 final class CaptureHistory {
     static let shared = CaptureHistory(folder: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -18,14 +18,15 @@ final class CaptureHistory {
         self.folder = folder
         // Built from the folder (not the listing's own URLs, which may spell the path differently, e.g. /private/var) so they compare equal.
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-        items = names.filter { $0.hasSuffix(".png") && !$0.hasSuffix(".preview.png") }.sorted(by: >).map { folder.appendingPathComponent($0) }
+        items = names.filter { $0.hasSuffix(".png") && !$0.hasSuffix(".preview.png") || $0.hasSuffix(".gif") }
+            .sorted(by: >).map { folder.appendingPathComponent($0) }
     }
 
     var latest: URL? { items.first }
 
-    /// Moves a fresh capture file in (no re-encoding).
+    /// Moves a fresh capture file in (no re-encoding): a PNG, or a GIF recording.
     func keep(_ file: URL) {
-        let url = nextURL()
+        let url = nextURL(type: file.pathExtension)
         guard (try? FileManager.default.moveItem(at: file, to: url)) != nil else { return }
         add(url)
     }
@@ -114,17 +115,17 @@ final class CaptureHistory {
     }()
 
     /// `<timestamp>.png`, always after the newest one so names sort in capture order (even two in the same millisecond).
-    private func nextURL() -> URL {
+    private func nextURL(type: String = "png") -> URL {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let newest = items.first.flatMap(Self.date(of:)) ?? .distantPast
         let date = max(Date.now, newest.addingTimeInterval(0.0015)) // the name keeps whole milliseconds
-        return folder.appendingPathComponent("\(Self.nameFormatter.string(from: date)).png")
+        return folder.appendingPathComponent("\(Self.nameFormatter.string(from: date)).\(type)")
     }
 }
 
 /// What's kept of a capture's edits so they come back when it's reopened: everything drawn, and the crop.
 /// The backdrop isn't: it's a choice that already carries over to every capture.
 struct SavedEdits: Codable {
-    var annotations: [Annotation]
+    var annotations: [Annotation] = []
     var crop: CGRect?
 }
