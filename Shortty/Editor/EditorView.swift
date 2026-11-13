@@ -31,6 +31,7 @@ struct EditorView: View {
             case .canvasFirst:
                 canvas(layout).overlay { FloatingChrome(model: model) }
             }
+            if model.isGIF { PlaybackBar(model: model) }
             if settings.showsHistory, !history.items.isEmpty {
                 HistoryStrip(model: model, history: history)
             }
@@ -376,6 +377,35 @@ private struct SelectionBar: View {
     }
 }
 
+// MARK: - Playback bar
+
+/// Under the picture while a GIF recording is open, in every layout: play or pause (Space), and a slider to stop on
+/// any frame. What's drawn stays on every frame.
+struct PlaybackBar: View {
+    static let height: CGFloat = 36
+
+    @Bindable var model: EditorModel
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ToolButton(icon: model.isPlaying ? .pause : .play, tooltip: model.isPlaying ? "Pause" : "Play", shortcut: "Space") { model.isPlaying.toggle() }
+            TrackSlider(value: Binding(get: { CGFloat(model.frame) }, set: { model.showFrame(Int($0)) }), range: 0...CGFloat(model.frameCount - 1),
+                        thumb: CGSize(width: 6, height: 14), track: Capsule().fill(.white.opacity(0.22)).frame(height: 4)) { began in
+                if began { model.isPlaying = false }
+            }
+            .frame(height: 22)
+            Text(String(format: "%.1f / %.1f s", Double(model.frame) / Double(GIF.framesPerSecond), Double(model.frameCount) / Double(GIF.framesPerSecond)))
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(Theme.chromeText)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: Self.height)
+        .background(Theme.chrome)
+        .overlay(alignment: .top) { Rectangle().fill(.white.opacity(0.07)).frame(height: 1) }
+        .environment(\.tooltipEdge, .top)
+    }
+}
+
 // MARK: - History strip
 
 /// Recent captures. Folded into a slim bar with an arrow and the count until you open it; then click one to open it
@@ -404,15 +434,17 @@ struct HistoryStrip: View {
         return step < 0 ? items[..<index].reversed() : Array(items[(index + 1)...])
     }
 
-    /// The files a drag hands over: each capture as its thumbnail shows it, edits drawn in (a temporary PNG),
-    /// or the capture's own file when it has no edits.
+    /// The files a drag hands over: each capture as its thumbnail shows it, edits drawn in (a temporary PNG, or GIF
+    /// with them on every frame), or the capture's own file when it has no edits.
     static func exported(_ captures: [URL]) -> [URL] {
         let folder = ImageExport.temporaryFolder
         try? FileManager.default.removeItem(at: folder) // the previous drag's files
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return captures.map { capture in
-            guard let edits = CaptureHistory.loadEdits(for: capture), let image = CGImage.load(from: capture) else { return capture }
+            guard let edits = CaptureHistory.loadEdits(for: capture) else { return capture }
             let file = folder.appendingPathComponent("shortty-\(capture.lastPathComponent)")
+            if capture.pathExtension == "gif" { return (try? ImageExport.writeGIF(capture, edits: edits, to: file)) != nil ? file : capture }
+            guard let image = CGImage.load(from: capture) else { return capture }
             return (try? ImageExport.writePNG(image.rendering(edits.annotations, crop: edits.crop), to: file)) != nil ? file : capture
         }
     }
@@ -560,6 +592,17 @@ private struct HistoryThumb: View {
                 }
             }
             .frame(width: 84, height: 50)
+            .overlay(alignment: .bottomLeading) {
+                if url.pathExtension == "gif" {
+                    Text("GIF")
+                        .font(.system(size: 8, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1.5)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(.black.opacity(0.7)))
+                        .padding(3)
+                }
+            }
             .overlay {
                 if broken {
                     Text("!")

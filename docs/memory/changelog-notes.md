@@ -2,6 +2,7 @@
 
 Critical changes only: behavior users notice, data or settings formats, architecture moves. Newest first.
 
+- **2026-11-13** · GIF recording: actions GIF Region, GIF Screen and GIF Window (hotkey ids 11–13), UserDefaults `gifDuration` (Int, 1–30, default 5). History format: a recording is `<timestamp>.gif`, with the same `.json` and `.preview.png` beside it. The editor gains a playback bar for them. The menu's "Cancel Lazy Shot" is now "Cancel Countdown". Settings → Shortcuts scrolls.
 - **2026-11-12** · Report in the recent-captures strip records editor events (`BugReport`) to `~/Library/Caches/com.shortty.Shortty/Reports`. A thumbnail cell takes clicks over its whole area; its picture takes none.
 - **2026-11-09** · New setting: UserDefaults `showsCursor` (Bool, default false) draws the pointer into captures.
 - **2026-11-09** · Recent captures: ‹ › arrows step between captures; thumbnails show the pointing hand. All panel focus goes through `AppPresence.focus(_:)`, which goes by the window server's key focus (`AppPresence.holdsKeyboard`), not AppKit's.

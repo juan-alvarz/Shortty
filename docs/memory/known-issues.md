@@ -2,6 +2,24 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-13 · Stop Recording crashed — fixed, checked with the real flow outside the app
+- **Symptom:** ending a GIF recording early ("Stop Recording", or the shortcut again) killed Shortty:
+  `-[NSConcreteTask terminationStatus]: task still running`.
+- **Cause:** stopping cancels the capture task, and `Recording.finish` waited for `screencapture` with `for await` on an
+  `AsyncStream`. In a cancelled task that returns at once, before the process has exited or written the movie.
+- **Fix:** the wait is an unstructured `Task` made when the recording starts; `finish` awaits its `value`, which
+  cancellation doesn't cut short.
+- **Checked:** a build of the app's sources with its real settings (Swift 6, MainActor by default) ran
+  `CaptureController.perform` for GIF Screen (2 s: 18 frames), GIF Screen stopped after 1.5 s of 8 (13 frames, kept) and
+  GIF Window (19 frames). The self-check can't: it never records the screen, and it compiles in Swift 5 mode, where the
+  capture flow isn't on the main actor.
+
+## 2026-11-13 · GIF recording — new, not yet used by hand in the installed app
+- **Checked:** the flow above; `screencapture -v -R` on a second, 1× display, with the pointer in it; the editor, card
+  and exports with a made-up GIF in the self-check.
+- **Not checked:** in the installed app, from the menu or a shortcut: the outline on screen while recording, and
+  playing, drawing on and exporting a real recording in the editor window.
+
 ## 2026-11-09 · Pointer missing from screenshots — fixed, checked in the installed app
 - **Symptom:** with the setting on, captures had no pointer, even a lazy area with the pointer inside it.
 - **Cause:** `screencapture -C` draws nothing with `-R` on macOS 15.7. The self-check only looked at the arguments.
@@ -80,6 +98,15 @@ Newest first. An issue is fixed only once it has been checked in the installed a
 - **Fix:** step back to accessory before a panel asks for focus. See decisions, 2026-10-29.
 
 ## Platform limits
+- **`screencapture -v` (macOS 15.7):** it leaves a playable file only when its input closes or a key arrives. SIGINT and
+  SIGTERM end it with no file, `-V <seconds>` ignores the input, `-t mov` fails, and `-l <window>` is ignored (the whole
+  screen is recorded). So `ScreenCapture.Recording` closes a pipe to stop, and GIF Window records the window's
+  rectangle without following it. The pointer is always in the video.
+- **GIF memory:** ImageIO holds every frame until the file is finalized, about 12 bytes a pixel (98 full-screen frames:
+  1.8 GB). `GIF.pixelBudget` scales long or large recordings down; only a frame-by-frame encoder of our own would lift it.
+- **GIFs in the editor:** ImageIO decodes a GIF from its start, so jumping back with the frame slider in a long
+  full-screen recording takes up to half a second (playing forward is 6 ms a frame). Copy, Save and drags of an edited
+  GIF draw every frame on the main thread: a few seconds for a long one, with the editor frozen meanwhile.
 - **WebP export:** ImageIO can't write WebP on macOS, so it would need a third-party encoder (not allowed).
 - **Scrolling capture:** scrolling more than one frame height between two frames loses the overlap. That frame is skipped, and the content between frames can be missing.
 - **Crosshair over other apps:** a background app needs the `SetsCursorInBackground` connection property to show its cursor.

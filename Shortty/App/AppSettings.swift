@@ -14,6 +14,13 @@ final class AppSettings {
         didSet { defaults.set(lazyDelay, forKey: "lazyDelay") }
     }
 
+    static let gifDurationRange = 1...30
+
+    /// Seconds a GIF recording lasts, unless it's stopped sooner.
+    var gifDuration: Int {
+        didSet { defaults.set(gifDuration, forKey: "gifDuration") }
+    }
+
     static let downloadsFolder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
 
     /// Where Save (⌘S) writes. Defaults to Downloads.
@@ -104,6 +111,7 @@ final class AppSettings {
         showsCursor = stored.bool(forKey: "showsCursor")
         saveFolder = stored.string(forKey: "saveFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } ?? Self.downloadsFolder
         lazyDelay = (stored.object(forKey: "lazyDelay") as? Int ?? 3).clamped(to: Self.lazyDelayRange)
+        gifDuration = (stored.object(forKey: "gifDuration") as? Int ?? 5).clamped(to: Self.gifDurationRange)
         hotkeys = Dictionary(uniqueKeysWithValues: CaptureAction.allCases.map { action in
             (action, stored.string(forKey: action.hotkeyKey).flatMap(Hotkey.init(rawValue:)) ?? .none)
         })

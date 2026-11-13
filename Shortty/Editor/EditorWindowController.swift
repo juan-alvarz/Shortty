@@ -75,7 +75,7 @@ final class EditorWindowController: NSWindowController {
     func show(_ image: CGImage, file: URL? = nil) {
         guard let window else { return }
         model.load(image, from: file)
-        window.setContentSize(Self.size(for: image, layout: AppSettings.shared.editorLayout))
+        window.setContentSize(Self.size(for: image, layout: AppSettings.shared.editorLayout, playbackBar: model.isGIF))
         if !window.isVisible { window.center() }
         present()
     }
@@ -131,11 +131,11 @@ final class EditorWindowController: NSWindowController {
     }
 
     /// Natural size (1 image px = 1 screen px) plus the layout's bars, clamped to 85% of the screen.
-    private static func size(for image: CGImage, layout: EditorLayout) -> NSSize {
+    private static func size(for image: CGImage, layout: EditorLayout, playbackBar: Bool) -> NSSize {
         let screen = NSScreen.main
         let scale = screen?.backingScaleFactor ?? 2
         let maxSize = (screen?.visibleFrame.size ?? NSSize(width: 1440, height: 900)).applying(.init(scaleX: 0.85, y: 0.85))
-        let historyHeight = HistoryStrip.height(for: CaptureHistory.shared)
+        let historyHeight = HistoryStrip.height(for: CaptureHistory.shared) + (playbackBar ? PlaybackBar.height : 0)
         let natural = NSSize(width: CGFloat(image.width) / scale + 32 + layout.chrome.width,
                              height: CGFloat(image.height) / scale + 32 + layout.chrome.height + historyHeight)
         return NSSize(width: max(layout.minWidth, min(natural.width, maxSize.width)), height: max(320, min(natural.height, maxSize.height)))
@@ -167,6 +167,7 @@ final class EditorWindowController: NSWindowController {
 
     /// The capture's edits are on disk before the window goes away (they also save on their own as you work).
     override func close() {
+        model.isPlaying = false
         model.saveEdits()
         super.close()
     }
@@ -225,6 +226,7 @@ final class EditorWindowController: NSWindowController {
             if model.tool != .select { model.tool = .select } else { model.select(nil) }
         case kVK_Return where model.tool == .crop, kVK_ANSI_KeypadEnter where model.tool == .crop:
             model.applyCrop()
+        case kVK_Space where model.isGIF: model.isPlaying.toggle()
         case kVK_ANSI_1 where model.tool == .ruler: model.rulerAxes = .horizontal
         case kVK_ANSI_2 where model.tool == .ruler: model.rulerAxes = .vertical
         case kVK_Delete where hasSelection, kVK_ForwardDelete where hasSelection:

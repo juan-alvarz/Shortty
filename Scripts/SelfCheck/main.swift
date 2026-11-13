@@ -1344,6 +1344,86 @@ struct SelfCheck {
         snapshot(card.contentView!, "quick-card.png")
         QuickCard.dismiss()
         check(!card.isVisible, "the quick card closes")
+        // MARK: GIF recording
+        check(CaptureAction.allCases.filter(\.isGIF) == [.gifRegion, .gifScreen, .gifWindow] && settings.gifDuration == 5, "three GIF actions, 5 seconds out of the box")
+        settings.gifDuration = 8
+        check(UserDefaults.standard.integer(forKey: "gifDuration") == 8, "the GIF length is remembered")
+        settings.gifDuration = 5
+        UserDefaults.standard.removeObject(forKey: "gifDuration")
+        check(GIF.frameSize(for: CGSize(width: 800, height: 600), frames: 50) == CGSize(width: 800, height: 600), "a short GIF of an area keeps its size in points")
+        let longScreen = GIF.frameSize(for: CGSize(width: 2560, height: 1440), frames: 300)
+        check(longScreen.width * longScreen.height * 300 <= GIF.pixelBudget * 1.01 && longScreen.width > 640
+              && near(longScreen.width / longScreen.height, 2560.0 / 1440, 0.01), "a long full-screen GIF is scaled down to the memory budget, same shape (\(longScreen))")
+        let gifFile = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-\(UUID().uuidString).gif")
+        try! GIF.write([image, bitmap(image.width, image.height, .white).makeImage()!, image], to: gifFile)
+        let gifSource = CGImageSourceCreateWithURL(gifFile as CFURL, nil)!
+        let gifFrame = (CGImageSourceCopyPropertiesAtIndex(gifSource, 1, nil) as? [CFString: Any])?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+        let gifLoop = ((CGImageSourceCopyProperties(gifSource, nil) as? [CFString: Any])?[kCGImagePropertyGIFDictionary] as? [CFString: Any])?[kCGImagePropertyGIFLoopCount] as? Int
+        check(CGImageSourceGetCount(gifSource) == 3 && gifFrame?[kCGImagePropertyGIFDelayTime] as? Double == 0.1 && gifLoop == 0,
+              "a GIF keeps every frame, 10 a second, and loops forever")
+        // A GIF recording is a capture like any other: kept in the recent captures and opened in the editor
+        let gifFolder = FileManager.default.temporaryDirectory.appendingPathComponent("shortty-selfcheck-gif-\(UUID().uuidString)")
+        let gifHistory = CaptureHistory(folder: gifFolder)
+        gifHistory.keep(gifFile)
+        let gifCapture = gifHistory.latest!
+        check(gifCapture.pathExtension == "gif" && CaptureHistory(folder: gifFolder).items == [gifCapture] && CaptureHistory.isReadable(gifCapture),
+              "a GIF recording is kept in the recent captures as a GIF, also after a relaunch")
+        let gifModel = EditorModel(image: image)
+        gifModel.load(CGImage.load(from: gifCapture)!, from: gifCapture)
+        let gifFirst = gifModel.image
+        check(gifModel.isGIF && gifModel.frameCount == 3 && gifModel.isPlaying, "a GIF opens in the editor with its frames, playing")
+        spin(0.25)
+        check(gifModel.image !== gifFirst, "a playing GIF moves on to its next frames")
+        gifModel.tool = .arrow
+        check(!gifModel.isPlaying, "picking a tool pauses the GIF")
+        gifModel.showFrame(1)
+        check(gifModel.frame == 1 && same(pixel(gifModel.image, 500, 320), [255, 255, 255]), "the frame slider stops on any frame")
+        let gifWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 920, height: 680), styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
+        gifWindow.appearance = NSAppearance(named: .darkAqua)
+        gifWindow.titlebarAppearsTransparent = true
+        let stripWasOpen = UserDefaults.standard.bool(forKey: HistoryStrip.expandedKey)
+        UserDefaults.standard.set(true, forKey: HistoryStrip.expandedKey) // the snapshot shows the GIF's thumbnail
+        gifWindow.contentView = NSHostingView(rootView: EditorView(model: gifModel, history: gifHistory))
+        gifWindow.orderFrontRegardless()
+        // What's drawn is on every frame of what Save, Copy and drags hand over (never the real clipboard or Downloads)
+        let gifMark = Annotation(shape: .rectangle(CGRect(x: 200, y: 200, width: 300, height: 200)), color: Theme.accent, width: 20)
+        gifModel.annotations = [gifMark]
+        gifModel.saveEdits()
+        spin(0.6)
+        snapshot(gifWindow.contentView!, "gif-editor.png")
+        gifWindow.orderOut(nil)
+        UserDefaults.standard.set(stripWasOpen, forKey: HistoryStrip.expandedKey)
+        func frames(of gif: URL) -> [CGImage] {
+            let source = CGImageSourceCreateWithURL(gif as CFURL, nil)
+            return (0..<(source.map(CGImageSourceGetCount) ?? 0)).compactMap { CGImageSourceCreateImageAtIndex(source!, $0, nil) }
+        }
+        let gifSaved = frames(of: try! ImageExport.saveGIF(gifCapture, edits: SavedEdits(annotations: [gifMark]), to: gifFolder.appendingPathComponent("saved")))
+        check(gifSaved.count == 3 && gifSaved.allSatisfy { same(pixel($0, 200, 300), Theme.accent, 40) } && same(pixel(gifSaved[1], 600, 500), [255, 255, 255], 12),
+              "Save writes a GIF with the drawing on every frame")
+        let gifDragged = HistoryStrip.exported([gifCapture])
+        check(gifDragged.first?.pathExtension == "gif" && gifDragged.first != gifCapture
+              && frames(of: gifDragged[0]).allSatisfy { same(pixel($0, 200, 300), Theme.accent, 40) } && frames(of: gifDragged[0]).count == 3,
+              "dragging a GIF out of the strip hands over a GIF with its edits")
+        let gifBoard = NSPasteboard.withUniqueName()
+        try! ImageExport.copyGIF(gifCapture, to: gifBoard)
+        let gifCopied = (gifBoard.readObjects(forClasses: [NSURL.self]) as? [URL])?.first
+        check(gifCopied?.lastPathComponent.hasSuffix("-recording.gif") == true && gifCopied.flatMap { try? Data(contentsOf: $0) } == (try? Data(contentsOf: gifCapture)),
+              "Copy puts an unedited GIF on the clipboard as a file, untouched")
+        // After a recording: Copy is a GIF file, and the card plays it
+        settings.afterCapture = .card
+        settings.copyAfterCapture = true
+        let gifCopies = gifBoard.changeCount
+        CaptureController.deliver(gifFirst, file: gifCapture, pasteboard: gifBoard)
+        spin(0.3)
+        let gifCard = NSApp.windows.first { $0 is OverlayPanel && $0.isVisible && !$0.ignoresMouseEvents }
+        check(gifCard != nil && gifCard?.isKeyWindow == false && gifBoard.changeCount > gifCopies
+              && gifCard.flatMap { find(NSImageView.self, in: $0.contentView!) }?.animates == true,
+              "after a GIF recording the card plays it without taking focus, and it's copied as a GIF")
+        if let gifCard { snapshot(gifCard.contentView!, "gif-card.png") }
+        QuickCard.dismiss()
+        settings.afterCapture = .editor
+        gifModel.isPlaying = false
+        try? FileManager.default.removeItem(at: gifFolder)
         // MARK: Pointer in screenshots
         check(!settings.showsCursor && ScreenCapture.Pointer.now() == nil, "screenshots leave the pointer out by default")
         settings.showsCursor = true

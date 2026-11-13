@@ -13,6 +13,7 @@
 		2231EAA41DDE4F47441C7D24 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BC4816D2FA9B0822F685E95 /* AppDelegate.swift */; };
 		2D513F71A27483AA5C895727 /* ScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8899207AD6EFBA9DEED53F0D /* ScreenCapture.swift */; };
 		3569C6FBCBB830D384A97272 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB20F35B583785E899B9DC5A /* SettingsView.swift */; };
+		373F755476521060BA855C40 /* GIF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48F08F6B93105590CFBF31B0 /* GIF.swift */; };
 		52B1B808F8EADCC4FC8072FE /* Effects.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D9FE5C68B274F0B8385EE5D /* Effects.swift */; };
 		53C8A8486894E2DB9839A8AB /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA16053C98819512A9FC897 /* HotkeyManager.swift */; };
 		6A304099BC16C3BF3DB07E9C /* TextCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C45FC3A163AB2A50A75C6260 /* TextCard.swift */; };
@@ -56,6 +57,7 @@
 		3632463970E16D02813D2971 /* ShorttyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShorttyApp.swift; sourceTree = "<group>"; };
 		41AA6B596EB6CC161428EBC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		46A0D1DF7ABD400F75CEE78B /* DragHandle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandle.swift; sourceTree = "<group>"; };
+		48F08F6B93105590CFBF31B0 /* GIF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GIF.swift; sourceTree = "<group>"; };
 		52F10276AE6A02A26B9A976A /* EditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorModel.swift; sourceTree = "<group>"; };
 		54F0848AB96555AEC52E3587 /* FloatingToast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingToast.swift; sourceTree = "<group>"; };
 		5606DA54332BC4A1C9D33233 /* ScrollStitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollStitcher.swift; sourceTree = "<group>"; };
@@ -141,6 +143,7 @@
 				A6E67EC2996327FAED2B61B3 /* CaptureController.swift */,
 				E8AC6DE754337FAF9185EE35 /* CaptureHistory.swift */,
 				54F0848AB96555AEC52E3587 /* FloatingToast.swift */,
+				48F08F6B93105590CFBF31B0 /* GIF.swift */,
 				8E8827E5E5785422431746A3 /* RegionSelector.swift */,
 				8899207AD6EFBA9DEED53F0D /* ScreenCapture.swift */,
 				341C04DB5D26889F57FCDE62 /* ScrollCapture.swift */,
@@ -307,6 +310,7 @@
 				1E8E27097FC1E9C6840A8C7F /* EditorWindowController.swift in Sources */,
 				52B1B808F8EADCC4FC8072FE /* Effects.swift in Sources */,
 				C2269DE7C000E3CC427AEBCC /* FloatingToast.swift in Sources */,
+				373F755476521060BA855C40 /* GIF.swift in Sources */,
 				A618E16E1595401D4DA4720B /* Hotkey.swift in Sources */,
 				53C8A8486894E2DB9839A8AB /* HotkeyManager.swift in Sources */,
 				802230C49DCD4B367043D00E /* HotkeyRecorder.swift in Sources */,

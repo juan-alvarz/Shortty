@@ -2,6 +2,22 @@
 
 Newest first. Each: what was decided, why, and what was rejected.
 
+## 2026-11-13 · GIF recordings: one length, the lazy countdown, edited like a screenshot
+- **Decision:** GIF Region, Screen and Window run the lazy countdown, then record a fixed rectangle with `screencapture -v -R`
+  for Settings → Shortcuts → Length (Stop Recording in the menu, or the same shortcut, ends it sooner and keeps it).
+  `GIF` turns the movie into a 10 fps GIF at 1× with ImageIO. It's then a capture like any other: kept in the history as
+  `<timestamp>.gif`, opened in the editor or on the card. The editor shows one frame, with a play button and a frame
+  slider in a bar under the picture; edits don't change over time and are drawn on every frame when the GIF is copied,
+  saved or dragged out.
+- **Why:** the user wanted the simplest recording (a maximum length and the lazy countdown, nothing else), then expected
+  the GIF in the recent captures, edited "as a normal PNG". `image.rendering(annotations, crop:, backdrop:)` already draws
+  the edits on any picture, so a GIF is that call once a frame.
+- **Rejected:** a length per mode; ScreenCaptureKit (`SCStream` follows a moving window, but it's a recorder to write and
+  keep); our own GIF encoder (it would lift the memory budget, see known issues); GIFs saved straight to the save folder
+  with their own card, outside the editor and the history (built first, then replaced); edits that appear partway
+  through or follow motion (a timeline); the playback controls inside each layout's bars (one bar under the canvas
+  serves all four).
+
 ## 2026-11-09 · Pointer setting skips quiet frames
 - **Decision:** Settings → Show the pointer in screenshots: Shortty draws `NSCursor.currentSystem` into area, lazy area,
   repeat, screen and active-window captures (`ScreenCapture.Pointer`), taken at the shutter; a dragged area takes it from

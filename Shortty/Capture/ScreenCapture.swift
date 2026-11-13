@@ -29,14 +29,21 @@ enum ScreenCapture {
 
     /// The frontmost app's front window, no clicking (no shadow).
     static func captureActiveWindow() async -> CGImage? {
-        guard let app = NSWorkspace.shared.frontmostApplication, let id = frontWindowID(of: app.processIdentifier) else {
+        guard let window = activeWindow() else { return nil }
+        return await capture(["-l", "\(window.id)", "-o"], over: window.frame)
+    }
+
+    /// The frontmost app's front window and where it is (global AppKit coordinates). Beeps when there's none.
+    static func activeWindow() -> (id: CGWindowID, frame: CGRect)? {
+        guard let app = NSWorkspace.shared.frontmostApplication, let id = frontWindowID(of: app.processIdentifier),
+              let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]])?.first,
+              let bounds = (info[kCGWindowBounds as String] as! CFDictionary?).flatMap({ CGRect(dictionaryRepresentation: $0) })
+        else {
             NSSound.beep()
             return nil
         }
-        let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, id) as? [[String: Any]])?.first
-        let bounds = (info?[kCGWindowBounds as String] as! CFDictionary?).flatMap { CGRect(dictionaryRepresentation: $0) }
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0 // window bounds have a top-left origin
-        return await capture(["-l", "\(id)", "-o"], over: bounds.map { CGRect(x: $0.minX, y: primaryHeight - $0.maxY, width: $0.width, height: $0.height) })
+        return (id, CGRect(x: bounds.minX, y: primaryHeight - bounds.maxY, width: bounds.width, height: bounds.height))
     }
 
     /// The app's frontmost normal window (on screen, layer 0, not a sliver). The list comes front to back.
@@ -115,6 +122,39 @@ enum ScreenCapture {
         }
         let errorText = String(decoding: stderr.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         return (url, "exit=\(process.terminationStatus) stderr=\(errorText)")
+    }
+
+    /// A video of `rect` (global AppKit coordinates) being recorded: no sound, the pointer always in it.
+    /// `screencapture -v` runs until its input closes. A signal ends it without a file, and `-V <seconds>` can't be cut short.
+    final class Recording {
+        private let process = Process()
+        private let input = Pipe()
+        private let url = URL.temporaryDirectory.appending(path: "shortty-\(UUID().uuidString).mov")
+        /// Done when `screencapture` has exited. A task of its own: a recording stopped early is finished from a
+        /// cancelled task, where waiting on the stream itself returns at once, before the movie is written.
+        private let exited: Task<Void, Never>
+
+        /// Starts recording. Nil without Screen Recording, or when `screencapture` won't start.
+        init?(of rect: CGRect) {
+            let (exits, exit) = AsyncStream<Void>.makeStream()
+            exited = Task { for await _ in exits {} }
+            guard hasPermission() else { return nil }
+            process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            process.arguments = ["-x", "-v", "-R", rectArgument(rect), url.path]
+            process.standardInput = input
+            process.standardOutput = FileHandle.nullDevice // "type any character to stop screen recording"
+            process.terminationHandler = { _ in exit.finish() }
+            do { try process.run() } catch { return nil }
+        }
+
+        /// Ends the recording. The movie is the caller's to delete; nil when nothing was written.
+        func finish() async -> URL? {
+            try? input.fileHandleForWriting.close()
+            await exited.value
+            let written = FileManager.default.fileExists(atPath: url.path)
+            log.notice("recording exit=\(self.process.terminationStatus) file=\(written)")
+            return written ? url : nil
+        }
     }
 
     /// Without Screen Recording, captures come back blank. Ask once via the system prompt;

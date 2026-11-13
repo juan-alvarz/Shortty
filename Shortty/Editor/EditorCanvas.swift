@@ -400,6 +400,7 @@ private final class CanvasView: NSView {
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        if model.isPlaying { model.isPlaying = false } // a GIF: draw on a still frame
         // Clicking outside the text being typed just finishes it.
         if model.editingID != nil {
             model.endEditing()
