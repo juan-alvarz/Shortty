@@ -1,0 +1,18 @@
+[package]
+name = "shortty"
+version = "0.1.0"
+edition = "2024"
+description = "Free, minimal screenshot tool: the Linux (Hyprland) port of Shortty"
+license = "MIT"
+repository = "https://github.com/juan-alvarz/Shortty"
+
+[dependencies]
+adw = { version = "0.9.2", package = "libadwaita", features = ["v1_6"] }
+futures-channel = "0.3.34"
+gio = { version = "0.22", features = ["v2_80"] }
+gtk = { version = "0.11.5", package = "gtk4", features = ["v4_14"] }
+gtk4-layer-shell = "0.8.1"
+ksni = { version = "0.3.7", features = ["blocking"] }
+pangocairo = "0.22.9"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"

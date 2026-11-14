@@ -4,7 +4,7 @@
 
 # Shortty
 
-**A free, minimal screenshot tool for macOS.**<br>
+**A free, minimal screenshot tool for macOS**, with a [Linux preview](#linux-preview) for Hyprland.<br>
 Capture, mark up and share in seconds, in the spirit of [Shottr](https://shottr.cc). Every feature is free, no ads.
 
 [![Latest release](https://img.shields.io/github/v/release/juan-alvarz/Shortty?label=download&color=FF6B3D)](https://github.com/juan-alvarz/Shortty/releases/latest)
@@ -12,7 +12,7 @@ Capture, mark up and share in seconds, in the spirit of [Shottr](https://shottr.
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
 [![MIT License](https://img.shields.io/badge/license-MIT-2F81F7)](LICENSE)
 
-[Download](https://github.com/juan-alvarz/Shortty/releases/latest) · [How to install](#how-to-install) · [Features](#features) · [Customization](#customization)
+[Download](https://github.com/juan-alvarz/Shortty/releases/latest) · [How to install](#how-to-install) · [Features](#features) · [Customization](#customization) · [Linux](#linux-preview)
 
 <img src="Design/screenshots/hero.png" alt="The Shortty editor: blur, arrows, spotlight, Live Text and recent captures on a screenshot of this page" width="100%">
 
@@ -219,6 +219,79 @@ lists every action with what it does. The lazy shot delay (1–30 s, default 3) 
 | Save folder | Where Save writes. Downloads unless you pick another. |
 | After a capture | What to show: the editor, a quick card in the corner of the screen with Copy, Save, Pin and Edit (drag its picture into any app, or click it to edit; it goes away on its own), or nothing but a short notice. Copy and Save also put the capture on the clipboard and in your save folder right away. Out of the box: editor + Copy. |
 | Show recent captures | The bar of recent captures in the editor. Keep sets how many (1–50, default 20); lowering it trims the oldest with the next capture. Delete All removes them from `~/Library/Caches/com.shortty.Shortty/History`. |
+
+## Linux (preview)
+
+A Rust + GTK4 port lives in [`linux/`](linux). It targets **Hyprland on Wayland** (tested on Arch with Hyprland
+0.56) and follows the macOS app: the same captures, the same editor with the Classic layout, the same keys with Ctrl
+for ⌘, and edits saved in the same format.
+
+### Install
+
+```bash
+sudo pacman -S --needed rust grim wl-clipboard gtk4 gtk4-layer-shell libadwaita hyprpicker
+git clone https://github.com/juan-alvarz/Shortty.git && Shortty/linux/install.sh
+```
+
+`install.sh` builds a release, installs `~/.local/bin/shortty` with its icon and launcher entry, and starts it.
+App launchers (rofi, …) then list Shortty, with the captures as its actions; opening it shows Settings. Image files
+offer "Open With Shortty Editor". Run it again after pulling to update.
+
+To start Shortty with Hyprland, for example in a Lua config:
+
+```lua
+hl.on("hyprland.start", function() hl.exec_cmd("shortty") end)
+```
+
+### Capture
+
+Shortty lives in the tray (waybar's tray shows it); its menu lists every action with its shortcut. Each action is
+also a command, handy for scripts:
+
+| Command | What it does |
+|---|---|
+| `shortty region` | Freezes the screen; drag over an area. Space switches to clicking a window, Esc cancels. |
+| `shortty window` | Freezes the screen; click a window to capture it. Space switches to dragging an area. |
+| `shortty screen` | The monitor with focus. |
+| `shortty active-window` | The window you're in, instantly. |
+| `shortty lazy-region` | Drag the area first, then a countdown runs and that area is captured. |
+| `shortty lazy-screen` | A countdown, then the monitor with focus. |
+| `shortty reopen` | Reopen Last Capture, with its edits. |
+| `shortty edit FILE` | Opens any picture in the editor. |
+| `shortty settings` | Opens Settings. |
+| `shortty quit` | Quits. |
+
+Each capture goes to `~/.cache/shortty/History` (the last 20), is copied to the clipboard and opens in the editor,
+or only shows a notification, as Settings → After a capture says. During a countdown a dashed outline and the
+seconds left show on screen (clicks go through), and the tray menu has Cancel Countdown.
+
+### Edit
+
+The tools match the macOS ones: Select, Pencil, Arrow (four styles; drag the middle handle to curve it), Text
+(callout, label, plain), Rectangle, Ellipse, Numbered steps, Magnifier, Blur and Erase, Spotlight, Crop (Return
+applies it; Reset or undo brings the picture back) and Ruler (hold 1 or 2 for one direction). Colors come with a hex
+field and a screen eyedropper; each tool keeps its own thickness. The recent captures run along the bottom: click
+one to edit it, × deletes one, the trash deletes them all after asking.
+
+Keys: the tool letters V P A T R O N M B S C U (hold Ctrl to see them on the buttons), Ctrl+Z / Ctrl+Shift+Z,
+Ctrl+C copy, Ctrl+S save, Ctrl+D duplicate, Ctrl+] / Ctrl+[ front and back, Ctrl+scroll or Ctrl+plus/minus to zoom,
+Ctrl+0 to fit, arrows to nudge (Shift: 10 px), Delete, Esc (twice closes), Ctrl+W. Shift while drawing works as on
+the Mac. While typing, the caret stays at the end of the text.
+
+### Settings
+
+General and Shortcuts, like the macOS app: capture sound, pointer in screenshots, selection color, save folder,
+what happens after a capture, how many captures to keep; then every action with a shortcut recorder and the lazy
+shot delay. Shortcuts need Super, Ctrl or Alt (Print and F-keys work alone). Shortty adds them to Hyprland itself
+while it runs and removes them when it quits, so your config files stay untouched; combinations your config already
+uses are refused. Everything is saved in `~/.config/shortty/settings.ini`.
+
+### Not ported yet
+
+Scrolling capture, Capture Text and QR codes, GIF recordings, Repeat Last Region, Blur Text and Erase Text,
+Recognize Text, Text Card, Pin to screen, the quick card, the selection bar, inserting pictures, dragging the result
+into other apps, the gradient backdrop, the other three editor layouts and Start at login. Other desktops (GNOME,
+KDE) aren't supported yet: captures and shortcuts go through Hyprland.
 
 ## Contributing
 

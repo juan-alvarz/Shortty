@@ -2,6 +2,56 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-14 · Linux: lazy countdown hid the screen — fixed, checked on screen
+- **Cause:** GTK paints a layer-shell window with the theme's opaque window background; only the outline and the
+  seconds were drawn on it. **Fix:** the countdown window's CSS background is transparent.
+
+## 2026-11-14 · Linux: window picking (Space, Capture Window) not yet used by hand
+- **Checked:** the overlay opens in window mode with its hint; window boxes come from `hyprctl -j clients` on the
+  shown workspaces, topmost first (tested).
+- **Not checked:** the highlight and click. Pointer warps (`hl.dsp.cursor.move`) send the overlay no pointer
+  events, so it can't be driven from a script; the plain `hyprctl dispatch movecursor` does nothing on a Lua config.
+
+## 2026-11-14 · Linux: wide thumbnails stretched the strip — fixed, checked on screen
+- **Cause:** a GTK `Picture` asks for its image's natural width; `size_request` is only a minimum.
+- **Fix:** thumbnails are fixed 84×50 drawing areas the picture fills (cover, rounded), like the macOS strip,
+  scaled once and cached by file and modification time. The bar remembers whether it's open (`history-expanded`).
+
+## 2026-11-14 · Linux: drawing closed the editor — fixed, test added
+- **Symptom:** any drag with a drawing tool left one dot, then Shortty vanished (no message: it was started with
+  its output thrown away).
+- **Cause:** `drag_to` held the model borrowed for writing and called `scale()`, which borrows it again. The
+  `RefCell` panic inside a GTK callback can't unwind, so the process aborts (`coredumpctl` showed SIGABRT in an
+  `Editor::connect` closure).
+- **Fix:** read the scale before borrowing. A test now drives the real editor (every tool, move, resize, crop,
+  ruler, typing) and fails with the old code; panics are appended to `~/.cache/shortty/crash.log`.
+- **Not checked:** drawing by hand after the fix.
+
+- **Checked:** the user drew and typed in the phase 1 editor (feedback: icons too big, no Delete All, no lazy shots,
+  all fixed). Steps, magnifier, blur, erase, spotlight and crop draw right in the snapshot tests
+  (`editor-effects.png`, `editor-cropped.png`); a lazy screen shot counts down and the badge isn't in the capture.
+- **Not checked:** the new tools, crop box, ruler and strip deletion with the mouse; Lazy Region; Cancel Countdown.
+- **Toolbar icons:** a `DrawingArea` icon inside a button stretches to the button and Cairo's scale follows it, so
+  icons are centered at their own size (`icons::widget`).
+- **Tray:** the tray icon registers whenever a tray host appears (`assume_sni_available`): Shortty started while
+  waybar's "folio" theme, which has no tray module, was running.
+
+## 2026-11-13 · Linux: shortcut recorder not yet used by hand
+- **Checked:** a shortcut from `settings.ini` is bound in Hyprland and removed on quit; Settings opens floating, 540×680.
+- **Not checked:** recording a combo in the window, the conflict toast, re-binding after a config reload, the sound.
+- **Limit:** a combo Hyprland already binds never reaches the recorder (Hyprland runs its own bind), so the conflict
+  check only guards against binds that let keys through.
+- **No "Start at login":** this setup runs neither XDG autostart nor uwsm, so the toggle couldn't work. Start it from
+  the Hyprland config instead.
+
+## 2026-11-13 · Linux: first captures checked on one monitor
+- **Checked:** on Hyprland 0.56 (one 1920×1080 output): the tray item registers, `shortty screen` and `shortty
+  active-window` write the right PNGs, the region overlay maps with the dim and the hint, and the user dragged a
+  region and pasted the copied crop into another app.
+- **Not checked:** more than one monitor, fractional scaling.
+- **Font:** Cairo's toy text API asks fontconfig for "Sans", which a broken user `fonts.conf` can resolve to an icon
+  font (tofu boxes). Overlay text goes through Pango, which uses GTK's font.
+
 ## 2026-11-13 · Stop Recording crashed — fixed, checked with the real flow outside the app
 - **Symptom:** ending a GIF recording early ("Stop Recording", or the shortcut again) killed Shortty:
   `-[NSConcreteTask terminationStatus]: task still running`.
