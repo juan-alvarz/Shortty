@@ -1,6 +1,6 @@
 use crate::{countdown, editor, geometry, history, output, selector, settings::Settings};
 use gtk::{gio, glib, prelude::*};
-use std::{ffi::OsStr, path::Path, time::Duration};
+use std::{cell::Cell, ffi::OsStr, path::Path, time::Duration};
 
 /// What can be triggered from the tray or `shortty <name>` (a Hyprland bind). Titles match the macOS app.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -69,12 +69,19 @@ pub fn perform(action: Action, from_menu: bool) {
     if action == Action::Reopen {
         return editor::reopen_last();
     }
+    // One capture at a time, like the macOS app: a second one would put its overlay over the first.
+    thread_local!(static BUSY: Cell<bool> = const { Cell::new(false) });
+    if BUSY.replace(true) {
+        return;
+    }
     glib::spawn_future_local(async move {
         if from_menu {
             glib::timeout_future(Duration::from_millis(250)).await;
         }
         let settings = Settings::load();
-        match capture(action, &settings).await {
+        let captured = capture(action, &settings).await;
+        BUSY.set(false);
+        match captured {
             Ok(Some(path)) => {
                 if settings.capture_sound {
                     output::shutter();

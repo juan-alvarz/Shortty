@@ -38,6 +38,8 @@ pub fn apply(settings: &Settings) {
     unbind_all();
     let exe = std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or("shortty".into());
     for (action, combo) in &settings.shortcuts {
+        // A Shortty that crashed or was killed left its binds behind, and Hyprland keeps duplicates: each would fire.
+        unbind(combo);
         let command = format!("'{exe}' {}", action.name());
         let lua = format!(
             "hl.bind({}, hl.dsp.exec_cmd({}), {{ description = {} }})",
@@ -58,9 +60,13 @@ pub fn apply(settings: &Settings) {
 /// Removes Shortty's binds (while recording a new one, and on quit).
 pub fn unbind_all() {
     for combo in BOUND.take() {
-        let lua = format!("hl.unbind({})", lua_string(&combo));
-        let _ = hyprctl(&["eval", &lua]) || hyprctl(&["keyword", "unbind", &classic_combo(&combo)]);
+        unbind(&combo);
     }
+}
+
+fn unbind(combo: &str) {
+    let lua = format!("hl.unbind({})", lua_string(combo));
+    let _ = hyprctl(&["eval", &lua]) || hyprctl(&["keyword", "unbind", &classic_combo(combo)]);
 }
 
 /// Hyprland reloads its config on every save, dropping runtime binds and rules: listen on its event socket and add them again.

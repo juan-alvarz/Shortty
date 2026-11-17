@@ -2,6 +2,21 @@
 
 Newest first. An issue is fixed only once it has been checked in the installed app.
 
+## 2026-11-16 · Linux: shortcuts fired twice after a crash — fixed, checked in the running Hyprland
+- **Symptom:** after Shortty died without quitting (a crash, `kill`), the next start made every shortcut capture twice.
+- **Cause:** the binds are only remembered in memory, so the dead instance's stayed in Hyprland, which keeps
+  duplicate binds and runs them all.
+- **Fix:** `hyprland::apply` unbinds each combo before binding it.
+- **Checked:** an instance on its own D-Bus session and config, with a combo nobody uses: after `kill -9` and a new
+  start, `hyprctl -j binds` lists it once (twice before the fix), and not at all after quitting.
+
+## 2026-11-16 · Linux: a second capture stacked on the first — fixed, checked with lazy shots
+- **Cause:** nothing stopped a capture while another was being picked or counted down: a shortcut pressed again froze
+  the screen over the first selector, and two countdowns shared one cancel flag.
+- **Fix:** one capture at a time, like the macOS `CaptureController`: `capture::perform` ignores the new one.
+- **Checked:** two Lazy Screen shots 0.3 s apart leave one capture (two before the fix); one after the other, two.
+- **Not checked:** the region shortcut pressed again while the selector is open, by hand.
+
 ## 2026-11-14 · Linux: lazy countdown hid the screen — fixed, checked on screen
 - **Cause:** GTK paints a layer-shell window with the theme's opaque window background; only the outline and the
   seconds were drawn on it. **Fix:** the countdown window's CSS background is transparent.
@@ -27,6 +42,7 @@ Newest first. An issue is fixed only once it has been checked in the installed a
   ruler, typing) and fails with the old code; panics are appended to `~/.cache/shortty/crash.log`.
 - **Not checked:** drawing by hand after the fix.
 
+## 2026-11-14 · Linux: phase 2 tools and lazy shots not yet used by hand
 - **Checked:** the user drew and typed in the phase 1 editor (feedback: icons too big, no Delete All, no lazy shots,
   all fixed). Steps, magnifier, blur, erase, spotlight and crop draw right in the snapshot tests
   (`editor-effects.png`, `editor-cropped.png`); a lazy screen shot counts down and the badge isn't in the capture.
