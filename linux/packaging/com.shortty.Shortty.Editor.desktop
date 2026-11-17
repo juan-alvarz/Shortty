@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Shortty Editor
+Comment=Mark up a picture in Shortty
+Icon=com.shortty.Shortty
+Exec=shortty edit %f
+NoDisplay=true
+MimeType=image/png;image/jpeg;image/webp;image/gif;image/bmp;

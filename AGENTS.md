@@ -24,6 +24,27 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 - Builds go to `.build.noindex/`, which keeps Spotlight and launchers from listing duplicate apps.
 - Logs: subsystem `com.shortty.Shortty`. Use `/usr/bin/log show`, because `log` may be a shell alias.
 
+### Linux port (`linux/`)
+
+Rust + GTK4 for Hyprland on Wayland. Same product, rules and project memory; the macOS app stays the reference.
+
+```bash
+cd linux && cargo fmt && cargo test && cargo clippy --all-targets   # pure logic is tested in each module's `tests`
+SHORTTY_SNAPSHOTS=/tmp/shots cargo test snapshot   # editor drawing → PNG to look at
+./target/debug/shortty &                # the daemon (tray); `./target/debug/shortty region` etc. reach it over D-Bus
+./install.sh                            # release build → ~/.local/bin/shortty, launcher entries (packaging/), icon; restarts it
+```
+
+- Try captures with `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` pointed at a temporary folder and `copy-after-capture=false`,
+  so the real clipboard and history stay untouched.
+- The shortcuts bind whichever binary is running (`current_exe`): after trying a debug build, run `./install.sh` again
+  so the user's binds point at `~/.local/bin/shortty`.
+- **Borrows abort.** A panic inside a GTK callback aborts the whole app. While `Editor.model` is borrowed for
+  writing, never call what reads it (`scale`, `canvas`, `to_image`, `to_view`, `hit`…): read those first.
+  `editor::tests::every_tool_works_in_the_real_editor` drives every tool to catch it. Panics go to `~/.cache/shortty/crash.log`.
+- `hyprctl eval` changes the live Hyprland session: test binds with combos nobody uses, and quit Shortty to remove them.
+- Prefer the desktop's own tools (`grim`, `hyprctl`, `wl-copy`) and GTK/GLib over new crates.
+
 ## Map
 
 | Path | What lives there |
@@ -37,6 +58,8 @@ xcodebuild -project Shortty.xcodeproj -scheme Shortty -configuration Debug -dest
 | `Design/AppIcon.svg` | App icon source → `swift Scripts/make-icon.swift` |
 | `Design/dmg` | Disk image window background, 1× and 2× → `swift Scripts/make-dmg-background.swift` (layout shared with `make-dmg.sh`) |
 | `Design/screenshots` | README images (hero 1600 px wide, layouts 1200 px; `sips -Z` to resize) |
+| `linux/packaging` | Launcher entries: `com.shortty.Shortty.desktop` (opens Settings; capture actions) and the hidden `…Editor.desktop` for Open With |
+| `linux/src` | Linux port: `main` (single instance, CLI → D-Bus), `tray` (StatusNotifierItem), `capture` (actions, grim/hyprctl), `hyprland` (runtime binds for the shortcuts, Settings window rule), `settings_window` (libadwaita General/Shortcuts), `countdown` (lazy shots: click-through outline, Cancel Countdown), `editor/` (`model` state, undo and crop, `annotation` shapes and the macOS JSON, `effects` (lens shapes, magnifier placement, ruler runs), `arrow`, `text` (Pango), `draw` (Cairo, export), `canvas` (view and mouse), `strip` (recent captures), `icons`, `mod` (window, keys, Copy/Save)), `selector` (frozen-screen area overlay, layer-shell), `output` (copy/save/notify), `history`, `settings` (GKeyFile), `geometry` (pure, tested) |
 | `docs/memory` | Project memory: `decisions.md`, `known-issues.md`, `changelog-notes.md` |
 
 ## Project memory

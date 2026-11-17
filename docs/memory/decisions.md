@@ -2,6 +2,43 @@
 
 Newest first. Each: what was decided, why, and what was rejected.
 
+## 2026-11-14 · Linux editor: Classic layout first, Mac JSON, typing at the end
+- **Decision:** the Linux editor ports the macOS model and drawing as they are (shapes, arrow and callout geometry,
+  palette, per-tool widths, live options, undo snapshots) and only the Classic layout. Edits are saved in the macOS
+  `SavedEdits` JSON (`{"arrow": {"start": [x, y], …}}`, `_0` for unlabeled values); shapes it can't draw yet are
+  skipped when reading. Text is typed through GTK's input method (accents and dead keys) with the caret always at
+  the end; the canvas draws it, no text view on top. The editor and Settings float through runtime window rules.
+- **Why:** the user asked for the editor and shortcuts to act like the Mac's; one layout covers it before the other
+  three. A text view over the canvas would need its font scaled with the zoom.
+- **Rejected:** a GTK `TextView` overlay for typing (for now); a new JSON format (the history couldn't move between
+  the apps).
+
+## 2026-11-13 · Linux shortcuts: recorded in Settings, bound in Hyprland while Shortty runs
+- **Decision:** Settings → Shortcuts records a combo and Shortty binds it in the running Hyprland with
+  `hyprctl eval 'hl.bind(...)'` (`hyprctl keyword bind` for classic configs), tagged with the description
+  "Shortty: <action>". It binds again on `configreloaded` (Hyprland's event socket), unbinds while recording and on
+  quit, and refuses combos another bind already uses (unbinding a combo removes every bind on it). The Settings window
+  floats through a runtime `hl.window_rule`. Settings uses libadwaita (grouped rows, like the macOS grouped form).
+- **Why:** the user wanted shortcuts to work like the Mac's: picked in Settings, none by default, no config editing.
+- **Rejected:** the GlobalShortcuts portal (Hyprland ignores the app's preferred keys; the user would still edit
+  their config); writing into the user's Hyprland config files; regex anchors and escapes in the eval'd rule (`\.` is
+  an invalid Lua escape, and the rule silently never matched).
+
+## 2026-11-13 · Linux port: Rust + GTK4 in `linux/`, Hyprland first
+- **Decision:** the port is a Rust crate in `linux/` of this repo (gtk4-rs, gtk4-layer-shell, ksni for the tray).
+  The macOS code stays where it is. Hyprland on Wayland only for now: `grim` captures, `hyprctl` finds the focused
+  monitor and window, `wl-copy` holds the clipboard, layer-shell draws overlays. Commands (`shortty region`, …) are
+  bound in Hyprland's config and reach the running instance through GApplication's D-Bus single instance.
+  Region capture freezes every output with `grim -o` first and crops the picked rect from that picture.
+  Settings are a GKeyFile, `~/.config/shortty/settings.ini`; history uses the macOS file names in `~/.cache/shortty/History`.
+- **Why:** almost all of the Swift code is AppKit/SwiftUI/Vision, so it's a rewrite either way; Rust has the most mature
+  GTK4, layer-shell and tray bindings, and the toolchain was already installed. One repo keeps the README, artwork and
+  memory shared.
+- **Rejected:** Swift + GTK bindings (young bindings, little code to share); a separate repo; moving the macOS app into
+  `mac/` (breaks `project.yml`, scripts and history for symmetry); app-level global hotkeys (Wayland has none);
+  GTK's clipboard (needs a focused surface, and there is none right after a capture); the Screenshot portal
+  (interactive, slower; worth it only for GNOME/KDE later).
+
 ## 2026-11-13 · GIF recordings: one length, the lazy countdown, edited like a screenshot
 - **Decision:** GIF Region, Screen and Window run the lazy countdown, then record a fixed rectangle with `screencapture -v -R`
   for Settings → Shortcuts → Length (Stop Recording in the menu, or the same shortcut, ends it sooner and keeps it).

@@ -1,0 +1,38 @@
+[Desktop Entry]
+Type=Application
+Name=Shortty
+GenericName=Screenshot Tool
+Comment=Capture, mark up and share screenshots
+Icon=com.shortty.Shortty
+Exec=shortty settings
+Categories=Graphics;
+Keywords=screenshot;capture;annotate;
+Actions=region;window;screen;active-window;reopen;lazy-region;lazy-screen;
+
+[Desktop Action region]
+Name=Capture Region
+Exec=shortty region
+
+[Desktop Action window]
+Name=Capture Window
+Exec=shortty window
+
+[Desktop Action screen]
+Name=Capture Screen
+Exec=shortty screen
+
+[Desktop Action active-window]
+Name=Capture Active Window
+Exec=shortty active-window
+
+[Desktop Action reopen]
+Name=Reopen Last Capture
+Exec=shortty reopen
+
+[Desktop Action lazy-region]
+Name=Lazy Region
+Exec=shortty lazy-region
+
+[Desktop Action lazy-screen]
+Name=Lazy Screen
+Exec=shortty lazy-screen

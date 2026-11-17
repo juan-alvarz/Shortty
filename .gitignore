@@ -3,3 +3,4 @@ xcuserdata/
 .build.noindex/
 .DS_Store
 build/
+linux/target/
